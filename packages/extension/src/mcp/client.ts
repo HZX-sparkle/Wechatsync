@@ -330,6 +330,7 @@ class McpClient {
           markdown?: string
           cover?: string
         }
+        const draftOnly = (params?.draftOnly as boolean) ?? true  // NEW
 
         if (!platforms?.length) throw new Error('Missing platforms parameter')
         if (!articleData?.title) throw new Error('Missing article title')
@@ -363,7 +364,7 @@ class McpClient {
         const { results, syncId } = await performSync(
           article,
           platforms,
-          { source: 'mcp' }
+          { source: 'mcp', draftOnly }  // was: { source: 'mcp' }
         )
 
         return { results, syncId }

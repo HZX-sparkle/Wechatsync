@@ -125,7 +125,7 @@ type MessageAction =
   | { type: 'GET_PLATFORMS' }
   | { type: 'CHECK_ALL_AUTH'; payload?: { forceRefresh?: boolean } }
   | { type: 'CHECK_AUTH'; payload: { platformId: string } }
-  | { type: 'SYNC_ARTICLE'; payload: { article: any; platforms: string[]; allSelectedPlatforms?: string[]; skipHistory?: boolean; source?: string; syncId?: string } }
+  | { type: 'SYNC_ARTICLE'; payload: { article: any; platforms: string[]; allSelectedPlatforms?: string[]; skipHistory?: boolean; source?: string; syncId?: string; draftOnly?: boolean } }
   | { type: 'OPEN_SYNC_PAGE'; path?: string }
   | { type: 'TEST_CMS_CONNECTION'; payload: { type: CMSType; url: string; username: string; password: string } }
   | { type: 'SYNC_TO_CMS'; payload: { accountId: string; article: any } }
@@ -205,7 +205,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
     }
 
     case 'SYNC_ARTICLE': {
-      const { article, platforms, allSelectedPlatforms, skipHistory, source = 'popup', syncId: passedSyncId } = message.payload
+      const { article, platforms, allSelectedPlatforms, skipHistory, source = 'popup', syncId: passedSyncId, draftOnly = true } = message.payload
       const allPlatformMetas = getAllPlatformMetas()
 
       // 使用传入的 syncId 或生成新的
@@ -328,7 +328,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
               payload: progress,
             })
           },
-        }, source)
+        }, source, draftOnly)
       }
 
       // 同步到 CMS 账户
