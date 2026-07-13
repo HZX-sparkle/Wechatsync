@@ -102,6 +102,10 @@ function createServer(): Server {
                 type: 'string',
                 description: '封面图 URL 或 base64 data URI（可选）',
               },
+              publish: {
+                type: 'boolean',
+                description: '直接发布文章（跳过草稿）。默认为 false，即保存为草稿',
+              },
             },
             required: ['platforms', 'title', 'markdown'],
           },
@@ -171,16 +175,22 @@ function createServer(): Server {
           })
           break
 
-        case 'sync_article':
+        case 'sync_article': {
+          const { platforms, title, markdown, content, cover, publish } = args as {
+            platforms: string[]
+            title: string
+            markdown?: string
+            content?: string
+            cover?: string
+            publish?: boolean
+          }
           result = await bridge.request<SyncResult[]>('syncArticle', {
-            platforms: (args as { platforms: string[] }).platforms,
-            article: {
-              title: (args as { title: string }).title,
-              content: (args as { content: string }).content,
-              markdown: (args as { markdown?: string }).markdown,
-              cover: (args as { cover?: string }).cover,
-            },
+            platforms,
+            article: { title, markdown, content, cover },
+            draftOnly: !(publish === true),
           })
+          break
+        }
           break
 
         case 'extract_article':
