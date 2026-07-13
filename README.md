@@ -111,53 +111,6 @@ wechatsync platforms --auth
 wechatsync extract -o article.md
 ```
 
-### 🔥 持久化账号 & 一键自动发布（Playwright） `2026-07-13`
-
-支持像 MultiPost 一样用持久化 Chromium Profile 管理多平台账号，实现真正的一键自动发布——无需手动点击任何按钮。
-
-**账号管理：**
-
-```bash
-# 登录平台（打开 Playwright 浏览器，手动登录一次后自动保存 Profile）
-wechatsync login csdn
-wechatsync login juejin
-
-# 查看已登录账号
-wechatsync accounts
-
-# 删除账号
-wechatsync logout <账号ID>
-```
-
-**一键自动发布：**
-
-```bash
-# --publish 会在草稿保存后，用 Playwright 自动打开编辑器并点击发布
-wechatsync sync article.md -p csdn,juejin --publish
-
-# 不加 --publish 仅保存草稿（行为不变）
-wechatsync sync article.md -p csdn,juejin
-```
-
-**工作原理：**
-1. `wechatsync login <平台>` 打开 Playwright Chromium 浏览器，你手动扫码/登录
-2. 登录成功后，Cookie 被 Chromium 自动保存到 `~/.wechatsync/playwright-profiles/{账号ID}/`
-3. 下次 `wechatsync sync --publish` 时，复用已保存的 Profile 启动浏览器（无需重新登录）
-4. 扩展保存草稿 → CLI 用 Playwright 自动导航到编辑器 → 点击发布按钮 → 关闭浏览器
-
-**支持的自动发布平台：** 掘金、CSDN（更多平台持续添加中）
-
-**数据存储：**
-```
-~/.wechatsync/
-  accounts.json              # 账号数据
-  playwright-profiles/       # Chromium 持久化 Profiles
-    csdn_{id}/               # 每账号独立目录，Cookie 自动管理
-    juejin_{id}/
-```
-
-> 同一平台支持多账号：重复 `wechatsync login` 即可添加新账号，`--publish` 时会依次发布到所有账号。
-
 ### Claude Code Skill 集成
 
 安装后可在 Claude Code 中直接用自然语言操作：
