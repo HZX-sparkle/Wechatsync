@@ -17,7 +17,14 @@ import path from 'path'
 import juice from 'juice'
 import { ExtensionBridge } from '@wechatsync/mcp-server/bridge'
 import type { PlatformInfo, SyncResult } from '@wechatsync/mcp-server/bridge'
-import { publishArticle } from './playwright/publish-engine'
+import { publishArticle, publishToAllAccounts } from './playwright/publish-engine'
+import {
+  addAccount, removeAccount,
+  loadAccounts, getAccountsForPlatform,
+  getAccount, saveAccounts,
+} from './playwright/account-manager'
+import { profileExists, removeProfile } from './playwright/profile-manager'
+import { getPlatformConfig, getSupportedPublishPlatforms } from './playwright/platform-config'
 
 const WS_PORT = parseInt(process.env.SYNC_WS_PORT || '9527', 10)
 
@@ -625,6 +632,162 @@ async function createBridge(): Promise<ExtensionBridge | null> {
   }
 }
 
+// ============ login 命令 ============
+
+program
+  .command('login <platform>')
+  .description('登录平台账号（打开浏览器，手动登录后保存 Profile）')
+  .option('--name <name>', '账号昵称')
+  .action(async (platform: string, options: { name?: string }) => {
+    const config = getPlatformConfig(platform)
+    if (!config) {
+      console.error(chalk.red(`不支持的平台: ${platform}`))
+      console.log(`支持的平台: ${getSupportedPublishPlatforms().join(', ')}`)
+      process.exit(1)
+    }
+
+    console.log(chalk.bold(`\n登录 ${config.name} (${platform})`))
+    console.log('即将打开浏览器窗口，请在浏览器中完成登录...\n')
+
+    // Generate account ID and create profile
+    const account = addAccount(platform, options.name || platform, undefined)
+    const { launchProfile } = require('./playwright/profile-manager')
+    const { injectAntiDetect } = require('./playwright/anti-detect')
+
+    const context = await launchProfile(account.id, false)
+    const page = context.pages()[0] || await context.newPage()
+
+    try {
+      await page.goto(config.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
+      console.log(chalk.gray('  等待登录完成（5分钟超时，完成后请关闭浏览器窗口）...'))
+
+      // Wait for login
+      try {
+        await page.waitForURL(
+          (url: any) => {
+            const u = url.toString().toLowerCase()
+            return !['login', 'signin', 'passport', 'auth'].some(kw => u.includes(kw))
+          },
+          { timeout: 300000 }
+        )
+        await page.waitForTimeout(3000)
+      } catch {
+        console.error(chalk.red('  登录超时'))
+        removeAccount(account.id)
+        removeProfile(account.id)
+        await context.close()
+        process.exit(1)
+      }
+
+      // Extract username
+      let username: string | undefined
+      if (config.checkUsername) {
+        try {
+          username = await config.checkUsername(page) || undefined
+        } catch { /* ignore */ }
+      }
+
+      // Update account with username
+      if (username) {
+        const accounts = loadAccounts()
+        const acc = accounts[platform]?.find(a => a.id === account.id)
+        if (acc) { acc.username = username; saveAccounts(accounts) }
+      }
+
+      // Prompt for nickname
+      const readline = (await import('readline')).default
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+      const nickname = await new Promise<string>(resolve => {
+        const defaultName = options.name || username || platform
+        rl.question(`账号昵称 (默认: ${defaultName}): `, (answer: string) => {
+          rl.close()
+          resolve(answer.trim() || defaultName)
+        })
+      })
+
+      // Update name
+      const accounts2 = loadAccounts()
+      const acc2 = accounts2[platform]?.find(a => a.id === account.id)
+      if (acc2) { acc2.name = nickname; saveAccounts(accounts2) }
+
+      await context.close()
+
+      console.log(chalk.green(`\n✓ 登录成功！`))
+      console.log(`  账号: ${chalk.cyan(nickname)} ${username ? chalk.gray(`(${username})`) : ''}`)
+      console.log(`  ID: ${chalk.gray(account.id)}`)
+    } catch (error) {
+      console.error(chalk.red('登录失败:'), (error as Error).message)
+      removeAccount(account.id)
+      removeProfile(account.id)
+      await context.close()
+      process.exit(1)
+    }
+  })
+
+// ============ accounts 命令 ============
+
+program
+  .command('accounts')
+  .description('列出所有已登录账号')
+  .action(() => {
+    const accounts = loadAccounts()
+    const platforms = Object.keys(accounts)
+
+    if (platforms.length === 0) {
+      console.log(chalk.gray('暂无已登录账号'))
+      console.log(`使用 ${chalk.cyan('wechatsync login <platform>')} 登录新账号`)
+      return
+    }
+
+    for (const platformKey of platforms) {
+      const config = getPlatformConfig(platformKey)
+      const platformName = config?.name || platformKey
+      console.log(chalk.bold(`\n${platformName}:`))
+
+      for (const account of accounts[platformKey]) {
+        const exists = profileExists(account.id)
+        const status = exists ? chalk.green('✅') : chalk.yellow('⚠️')
+        const info = account.username ? chalk.gray(`(${account.username})`) : ''
+        console.log(`  ${status} ${chalk.cyan(account.name)} ${info}  ${chalk.gray(account.id)}`)
+        if (!exists) {
+          console.log(chalk.yellow(`      Profile 不存在，请重新登录: wechatsync login ${platformKey}`))
+        }
+      }
+    }
+    console.log()
+  })
+
+// ============ logout 命令 ============
+
+program
+  .command('logout <id>')
+  .description('删除账号及其 Profile')
+  .action(async (id: string) => {
+    const account = getAccount(id)
+    if (!account) {
+      console.error(chalk.red(`账号不存在: ${id}`))
+      process.exit(1)
+    }
+
+    const readline = (await import('readline')).default
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    const confirm = await new Promise<string>(resolve => {
+      rl.question(
+        chalk.yellow(`确认删除账号 "${account.name}" (${account.id})？(y/N) `),
+        (answer: string) => { rl.close(); resolve(answer.trim().toLowerCase()) }
+      )
+    })
+
+    if (confirm !== 'y' && confirm !== 'yes') {
+      console.log('已取消')
+      process.exit(0)
+    }
+
+    removeAccount(id)
+    removeProfile(id)
+    console.log(chalk.green(`✓ 已删除账号 "${account.name}"`))
+  })
+
 // ============ sync 命令 ============
 
 program
@@ -759,17 +922,37 @@ program
 
       const results = response.results || []
 
-      // If publish mode, use Playwright to click publish button for platforms that need it
       if (options.publish) {
         for (const result of results) {
-          if (result.success && result.draftOnly && result.postId) {
-            const pwPlatforms = ['csdn', 'juejin']
-            if (pwPlatforms.includes(result.platform)) {
-              console.log(`  [自动发布] 正在通过浏览器发布到 ${result.platform}...`)
-              const pwResult = await publishArticle(result.platform, result.postId)
-              if (pwResult.success) {
-                result.draftOnly = false
-                result.message = '文章已发布'
+          if (result.success && result.postId) {
+            const config = getPlatformConfig(result.platform)
+            if (config) {
+              const accounts = getAccountsForPlatform(result.platform)
+              if (accounts.length > 0) {
+                console.log(chalk.bold(`\n  [自动发布] ${config.name} (${accounts.length} 个账号):`))
+                const pubResults = await publishToAllAccounts(result.platform, result.postId)
+                for (const pr of pubResults) {
+                  if (pr.success) {
+                    result.draftOnly = false
+                    if (pr.accountName) {
+                      console.log(`    ${chalk.green('✓')} ${pr.accountName} ${chalk.green('已发布')}`)
+                    }
+                  } else {
+                    console.log(`    ${chalk.red('✗')} ${pr.accountName || result.platform} ${chalk.red(pr.error || '发布失败')}`)
+                  }
+                }
+                // Update result for display
+                if (pubResults.some(p => p.success)) {
+                  result.draftOnly = false
+                  result.message = `${pubResults.filter(p => p.success).length}/${accounts.length} 个账号已发布`
+                }
+              } else {
+                // No accounts saved — single publish without account
+                const pr = await publishArticle(result.platform, result.postId)
+                if (pr.success) {
+                  result.draftOnly = false
+                  result.message = '已发布'
+                }
               }
             }
           }
