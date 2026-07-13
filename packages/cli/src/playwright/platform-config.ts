@@ -62,18 +62,29 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     postLoginUrl: 'https://www.csdn.net',
     editorUrl: (id: string) => `https://mp.csdn.net/mp_blog/creation/editor/${id}`,
     async doPublish(page: Page) {
-      // Click "定时发布" button
-      const btn1 = page.locator('button').filter({ hasText: '定时发布' })
-      await btn1.waitFor({ state: 'visible', timeout: 20000 })
-      await btn1.click()
-      await page.waitForTimeout(1500)
+      // Step 1: Add article tags (required before publishing)
+      try {
+        const tagBtn = page.getByRole('button', { name: '添加文章标签' })
+        await tagBtn.waitFor({ state: 'visible', timeout: 10000 })
+        await tagBtn.click()
+        await page.waitForTimeout(500)
 
-      // Click "发布博客" in the confirmation dialog
-      const btn2 = page.locator('button').filter({ hasText: '发布博客' })
-      await btn2.waitFor({ state: 'visible', timeout: 10000 })
+        // Type a tag in the search input
+        const tagInput = page.locator('input[placeholder*="请输入文字搜索"]')
+        await tagInput.waitFor({ state: 'visible', timeout: 5000 })
+        await tagInput.fill('技术分享')
+        await page.waitForTimeout(2000)
+        await page.keyboard.press('Enter')
+        await page.waitForTimeout(1000)
+      } catch {
+        // Tag might already be set, continue
+      }
+
+      // Step 2: Click "发布博客" button
+      const btn = page.locator('button').filter({ hasText: '发布博客' })
+      await btn.waitFor({ state: 'visible', timeout: 20000 })
       await page.waitForTimeout(500)
-      // Use force:true to bypass date picker overlay interception
-      await btn2.click({ force: true })
+      await btn.click()
       await page.waitForTimeout(5000)
     },
     async checkUsername(page: Page) {
