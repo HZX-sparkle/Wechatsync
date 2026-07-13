@@ -266,6 +266,13 @@ pnpm build
 
 ## 更新日志
 
+### v2.0.10 (2026-07-13)
+
+- 🆕 Playwright 持久化 Profile 账号管理 — `login`/`accounts`/`logout` 命令
+- 🆕 一键自动发布（`--publish`）— 掘金/CSDN 支持 Playwright 自动点击发布
+- 🆕 同一平台多账号支持 — Profile 由 Chromium 自动管理
+- 🆕 移植 MultiPost publish-agent 反检测脚本
+
 ### v2.0.9 (2026-03-24)
 
 - 🆕 文章识别和提取更准确，支持更多网页
