@@ -633,6 +633,7 @@ program
   .option('-t, --title <title>', '文章标题（默认从文件提取）')
   .option('--cover <url>', '封面图 URL 或本地路径')
   .option('--dry-run', '仅显示将要执行的操作，不实际同步')
+  .option('--publish', '直接发布文章（跳过草稿，立即发布到目标平台）')
   .action(async (file: string, options) => {
     // 检查文件是否存在
     const filePath = path.resolve(file)
@@ -752,6 +753,7 @@ program
           content: processedHtml,
           cover,
         },
+        draftOnly: !options.publish,
       })
 
       const results = response.results || []
@@ -764,9 +766,7 @@ program
       for (const result of results) {
         if (result.success) {
           console.log(
-            chalk.green('  ✓'),
-            chalk.bold(result.platform),
-            result.draftOnly ? chalk.gray('(草稿)') : ''
+            `  ${chalk.green('✓')} ${result.platform} ${result.draftOnly ? chalk.gray('(草稿)') : chalk.green('(已发布)')}`
           )
           if (result.postUrl) {
             console.log(`    ${chalk.cyan(result.postUrl)}`)
