@@ -273,12 +273,61 @@ export class JuejinAdapter extends CodeAdapter {
       const draftId = createData.data.id
       logger.debug('Draft created:', draftId)
 
+      const shouldPublish = options?.draftOnly === false
+
+      if (shouldPublish) {
+        try {
+          const publishResponse = await this.runtime.fetch(
+            'https://api.juejin.cn/content_api/v1/article_draft/publish',
+            {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-secsdk-csrf-token': csrfToken,
+              },
+              body: JSON.stringify({ draft_id: draftId }),
+            }
+          )
+
+          const publishText = await publishResponse.text()
+          logger.debug('Publish response:', publishResponse.status, publishText.substring(0, 300))
+
+          if (!publishResponse.ok) {
+            throw new Error(`发布失败: ${publishResponse.status}`)
+          }
+
+          let publishData: { err_no?: number; err_msg?: string }
+          try {
+            publishData = JSON.parse(publishText)
+          } catch {
+            throw new Error(`发布失败: 响应不是有效 JSON`)
+          }
+
+          if (publishData.err_no && publishData.err_no !== 0) {
+            throw new Error(publishData.err_msg || `发布失败: 错误码 ${publishData.err_no}`)
+          }
+
+          const publishedUrl = `https://juejin.cn/post/${draftId}`
+
+          return this.createResult(true, {
+            postId: draftId,
+            postUrl: publishedUrl,
+            draftOnly: false,
+            message: '文章已发布',
+          })
+        } catch (publishError) {
+          logger.warn('Juejin publish failed, fallback to draft:', publishError)
+          // 降级：返回草稿链接
+        }
+      }
+
       const draftUrl = `https://juejin.cn/editor/drafts/${draftId}`
 
       return this.createResult(true, {
         postId: draftId,
         postUrl: draftUrl,
-        draftOnly: options?.draftOnly ?? true,
+        draftOnly: true,
       })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
