@@ -225,7 +225,7 @@ export class CSDNAdapter extends CodeAdapter {
             readType: 'public',
             level: 0,
             tags: '',
-            status: 2, // 草稿
+            status: options?.draftOnly === false ? 1 : 2, // 1=发布, 2=草稿
             categories: '',
             type: 'original',
             original_link: '',
@@ -237,7 +237,7 @@ export class CSDNAdapter extends CodeAdapter {
             is_new: 1,
             vote_id: 0,
             resource_id: '',
-            pubStatus: 'draft',
+            pubStatus: options?.draftOnly === false ? 'public' : 'draft',
             creator_activity_id: '',
           }),
         }
@@ -257,12 +257,15 @@ export class CSDNAdapter extends CodeAdapter {
       }
 
       const postId = res.data.id
+      const username = '' // CSDN doesn't expose username in this API response
       const draftUrl = `https://editor.csdn.net/md?articleId=${postId}`
+      const publishedUrl = `https://blog.csdn.net/article/details/${postId}`
 
       return this.createResult(true, {
         postId: postId,
-        postUrl: draftUrl,
+        postUrl: options?.draftOnly === false ? publishedUrl : draftUrl,
         draftOnly: options?.draftOnly ?? true,
+        message: options?.draftOnly === false ? '文章已发布' : undefined,
       })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
