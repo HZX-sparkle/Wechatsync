@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.0.10 (2026-07-13)
+
+- 🆕 新增 Playwright 持久化 Profile 账号管理系统
+  - `wechatsync login <platform>` — 打开浏览器登录，自动保存 Profile
+  - `wechatsync accounts` — 列出所有平台账号及状态
+  - `wechatsync logout <id>` — 删除账号及 Profile
+  - 同一平台支持多账号，Profile 由 Chromium 自动管理
+- 🆕 新增一键自动发布功能（`--publish`）
+  - 掘金：Playwright 自动点击发布按钮
+  - CSDN：自动添加标签 → 点击发布博客
+  - 复用已保存的 Profile，无需重复登录
+- 🆕 移植 MultiPost publish-agent 的反检测脚本
+- 🔧 修复 CSDN/掘金 API 发布失败问题
+
 ## v2.0.8 (2026-03-17)
 
 - 🆕 新增抖音图文
