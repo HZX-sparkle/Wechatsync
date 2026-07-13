@@ -17,6 +17,7 @@ import path from 'path'
 import juice from 'juice'
 import { ExtensionBridge } from '@wechatsync/mcp-server/bridge'
 import type { PlatformInfo, SyncResult } from '@wechatsync/mcp-server/bridge'
+import { publishArticle } from './playwright/publish-engine'
 
 const WS_PORT = parseInt(process.env.SYNC_WS_PORT || '9527', 10)
 
@@ -757,6 +758,23 @@ program
       })
 
       const results = response.results || []
+
+      // If publish mode, use Playwright to click publish button for platforms that need it
+      if (options.publish) {
+        for (const result of results) {
+          if (result.success && result.draftOnly && result.postId) {
+            const pwPlatforms = ['csdn', 'juejin']
+            if (pwPlatforms.includes(result.platform)) {
+              console.log(`  [自动发布] 正在通过浏览器发布到 ${result.platform}...`)
+              const pwResult = await publishArticle(result.platform, result.postId)
+              if (pwResult.success) {
+                result.draftOnly = false
+                result.message = '文章已发布'
+              }
+            }
+          }
+        }
+      }
 
       syncSpinner.stop()
       console.log()
