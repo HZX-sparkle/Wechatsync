@@ -140,7 +140,7 @@ type MessageAction =
   | { type: 'CLEAR_SYNC_STATE' }
   | { type: 'UPDATE_SYNC_STATUS'; payload: { status: 'syncing' | 'completed' } }
   | { type: 'CANCEL_SYNC' }
-  | { type: 'START_SYNC_FROM_EDITOR'; article: any; platforms: string[]; syncId?: string }
+  | { type: 'START_SYNC_FROM_EDITOR'; article: any; platforms: string[]; syncId?: string; draftOnly?: boolean }
   | { type: 'UPLOAD_IMAGE'; payload: { src: string; platform?: string } }
   | { type: 'MAGIC_CALL'; payload: { methodName: string; data: any } }
   | { type: 'CLEAR_UPDATE_BADGE' }
@@ -706,7 +706,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
     }
 
     case 'START_SYNC_FROM_EDITOR': {
-      const { article, platforms, syncId: passedSyncId } = message
+      const { article, platforms, syncId: passedSyncId, draftOnly } = message
       const tabId = sender?.tab?.id
       const allPlatformMetas = getAllPlatformMetas()
 
@@ -789,7 +789,7 @@ async function handleMessage(message: MessageAction, sender?: chrome.runtime.Mes
               ...progress,
             })
           },
-        }, 'editor')
+        }, 'editor', draftOnly)
         // dslResults 已经通过 onResult 回调添加到 allResults
       }
 

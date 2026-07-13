@@ -172,6 +172,7 @@ window.addEventListener('message', (event) => {
           platforms: data.platforms,
           source: 'weixin-editor',
           syncId,
+          draftOnly: data.draftOnly,
         },
       }).then(response => {
         dialogIframe?.contentWindow?.postMessage(JSON.stringify({

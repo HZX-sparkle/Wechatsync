@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ArticleCard } from './ArticleCard'
 import { PlatformList } from './PlatformList'
@@ -37,6 +38,8 @@ export function SyncDialog({
   const isIdle = status === 'idle' || status === 'loading'
   const isSyncing = status === 'syncing'
   const isCompleted = status === 'completed'
+
+  const [publishMode, setPublishMode] = useState(false)
 
   const handleSelectAll = () => {
     if (selectedPlatforms.length === authenticatedPlatforms.length) {
@@ -127,23 +130,37 @@ export function SyncDialog({
             取消
           </button>
         ) : (
-          <button
-            onClick={onStartSync}
-            disabled={!article || selectedPlatforms.length === 0 || status === 'loading'}
-            className={cn(
-              'w-full py-2.5 rounded-lg font-medium transition-colors',
-              !article || selectedPlatforms.length === 0
-                ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+          <>
+            {/* 发布模式切换 */}
+            {article && selectedPlatforms.length > 0 && (
+              <label className="flex items-center gap-2 cursor-pointer py-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={publishMode}
+                  onChange={(e) => setPublishMode(e.target.checked)}
+                  className="rounded"
+                />
+                直接发布（跳过草稿，立即发布到各平台）
+              </label>
             )}
-          >
-            {!article
-              ? '请先打开文章页面'
-              : selectedPlatforms.length === 0
-                ? '请选择同步平台'
-                : `同步到 ${selectedPlatforms.length} 个平台`
-            }
-          </button>
+            <button
+              onClick={() => onStartSync({ draftOnly: !publishMode })}
+              disabled={!article || selectedPlatforms.length === 0 || status === 'loading'}
+              className={cn(
+                'w-full py-2.5 rounded-lg font-medium transition-colors',
+                !article || selectedPlatforms.length === 0
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              )}
+            >
+              {!article
+                ? '请先打开文章页面'
+                : selectedPlatforms.length === 0
+                  ? '请选择同步平台'
+                  : `同步到 ${selectedPlatforms.length} 个平台`
+              }
+            </button>
+          </>
         )}
       </div>
     </div>

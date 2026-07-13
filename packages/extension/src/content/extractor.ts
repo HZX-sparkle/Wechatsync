@@ -1144,6 +1144,7 @@ window.addEventListener('message', async (event) => {
         },
         platforms,
         syncId: data.syncId,  // 转发 syncId
+        draftOnly: data.draftOnly,
       })
     }
   } catch (e) {

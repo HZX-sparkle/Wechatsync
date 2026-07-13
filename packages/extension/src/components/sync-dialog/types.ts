@@ -50,7 +50,7 @@ export interface SyncDialogProps {
   onTogglePlatform: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void
-  onStartSync: () => void
+  onStartSync: (options?: { draftOnly?: boolean }) => void
   onRetryFailed: () => void
   onReset: () => void
   onCancel?: () => void

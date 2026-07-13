@@ -143,7 +143,7 @@ interface SyncState {
   selectAll: () => void
   deselectAll: () => void
   checkRateLimit: () => Promise<string | null>
-  startSync: () => Promise<void>
+  startSync: (draftOnly?: boolean) => Promise<void>
   retryFailed: () => Promise<void>
   reset: () => void
   updateProgress: (result: SyncResult) => void
@@ -378,7 +378,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     return checkSyncFrequency(selectedPlatforms)
   },
 
-  startSync: async () => {
+  startSync: async (draftOnly?: boolean) => {
     const { article, selectedPlatforms, platforms } = get()
     logger.debug('startSync called', { article, selectedPlatforms })
 
@@ -405,7 +405,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       // 传递 syncId 给 background，background 会用这个 ID
       const response = await chrome.runtime.sendMessage({
         type: 'SYNC_ARTICLE',
-        payload: { article, platforms: selectedPlatforms, syncId },
+        payload: { article, platforms: selectedPlatforms, syncId, draftOnly },
       })
 
       const allResults: SyncResult[] = response.results || []

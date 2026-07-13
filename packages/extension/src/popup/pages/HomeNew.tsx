@@ -107,13 +107,13 @@ export function HomeNew() {
   }
 
   // Start sync with rate-limit check
-  const handleStartSync = async () => {
+  const handleStartSync = async (options?: { draftOnly?: boolean }) => {
     const warning = await checkRateLimit()
     if (warning) {
       setRateLimitWarning(warning)
       setTimeout(() => setRateLimitWarning(null), 8000)
     }
-    startSync()
+    startSync(options?.draftOnly)
   }
 
   const successCount = results.filter(r => r.success).length

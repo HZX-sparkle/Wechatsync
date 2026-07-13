@@ -171,7 +171,7 @@ export function EditorApp() {
     saveSelectedPlatforms([])
   }
 
-  const handleStartSync = () => {
+  const handleStartSync = (options?: { draftOnly?: boolean }) => {
     const editedArticle = getEditedArticle()
     if (!editedArticle || selectedPlatforms.length === 0) return
 
@@ -187,6 +187,7 @@ export function EditorApp() {
       article: editedArticle,
       platforms: selectedPlatforms,
       syncId,
+      draftOnly: options?.draftOnly,
     }), '*')
   }
 

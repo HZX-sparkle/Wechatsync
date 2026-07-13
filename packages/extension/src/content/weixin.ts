@@ -139,6 +139,7 @@ window.addEventListener('message', (event) => {
           platforms: data.platforms,
           source: 'weixin',
           syncId,
+          draftOnly: data.draftOnly,
         },
       }).then(response => {
         // Forward completion to iframe
