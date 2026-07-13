@@ -50,6 +50,7 @@ export interface SyncResult {
   postUrl?: string
   draftOnly?: boolean
   error?: string
+  message?: string
   timestamp: number
 }
 

@@ -768,6 +768,9 @@ program
           console.log(
             `  ${chalk.green('✓')} ${result.platform} ${result.draftOnly ? chalk.gray('(草稿)') : chalk.green('(已发布)')}`
           )
+          if (result.message) {
+            console.log(`    ${chalk.yellow(result.message)}`)
+          }
           if (result.postUrl) {
             console.log(`    ${chalk.cyan(result.postUrl)}`)
           }

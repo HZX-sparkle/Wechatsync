@@ -244,8 +244,7 @@ export class CSDNAdapter extends CodeAdapter {
           headers,
           body: JSON.stringify({
             ...baseBody,
-            status: isPublish ? 1 : 2,
-            pubStatus: isPublish ? 'public' : 'draft',
+            status: isPublish ? 0 : 2,
           }),
         })
 
@@ -261,7 +260,7 @@ export class CSDNAdapter extends CodeAdapter {
         if (res.code !== 200 || !res.data?.id) {
           // If publish mode failed, retry as draft to avoid losing content
           if (isPublish) {
-            logger.warn('Publish failed, retrying as draft:', res.msg || res.message)
+            logger.warn('Publish failed, retrying as draft:', JSON.stringify(res).substring(0, 500))
             const retryResponse = await this.runtime.fetch(url, {
               method: 'POST',
               credentials: 'include',
@@ -282,7 +281,7 @@ export class CSDNAdapter extends CodeAdapter {
                 postId: retryRes.data.id,
                 postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
                 draftOnly: true,
-                message: '发布失败，已保存为草稿',
+                message: `发布失败(res.data=${JSON.stringify(res.data)}, res.code=${res.code})，已保存为草稿`,
               })
             }
           }
@@ -323,7 +322,7 @@ export class CSDNAdapter extends CodeAdapter {
                 postId: retryRes.data.id,
                 postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
                 draftOnly: true,
-                message: '发布失败，已保存为草稿',
+                message: `发布失败(${(error as Error).message})，已保存为草稿`,
               })
             }
           } catch {
