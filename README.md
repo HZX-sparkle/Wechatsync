@@ -111,7 +111,7 @@ wechatsync platforms --auth
 wechatsync extract -o article.md
 ```
 
-### 🔥 持久化账号 & 一键自动发布（Playwright）
+### 🔥 持久化账号 & 一键自动发布（Playwright） `2026-07-13`
 
 支持像 MultiPost 一样用持久化 Chromium Profile 管理多平台账号，实现真正的一键自动发布——无需手动点击任何按钮。
 
