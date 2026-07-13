@@ -216,7 +216,8 @@ export class ZhihuAdapter extends CodeAdapter {
       return this.createResult(true, {
         postId: draftId,
         postUrl: draftUrl,
-        draftOnly: (!shouldPublish),
+        draftOnly: true,
+        message: '发布失败，已保存为草稿',
       })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,

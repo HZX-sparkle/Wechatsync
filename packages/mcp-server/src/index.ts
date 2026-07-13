@@ -191,7 +191,6 @@ function createServer(): Server {
           })
           break
         }
-          break
 
         case 'extract_article':
           result = await bridge.request('extractArticle')

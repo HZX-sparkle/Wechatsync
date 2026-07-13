@@ -378,13 +378,13 @@ export async function performSync(
 
       switch (account.type) {
         case 'wordpress':
-          result = await wordpressAdapter.publish(credentials, normalizedArticle, { draftOnly })  // was: { draftOnly: true }
+          result = await wordpressAdapter.publish(credentials, normalizedArticle, { draftOnly: true })
           break
         case 'typecho':
-          result = await metaweblogAdapter.publishToTypecho(credentials, normalizedArticle, { draftOnly })  // was: { draftOnly: true }
+          result = await metaweblogAdapter.publishToTypecho(credentials, normalizedArticle, { draftOnly: true })
           break
         case 'metaweblog':
-          result = await metaweblogAdapter.publish(credentials, normalizedArticle, { draftOnly })  // was: { draftOnly: true }
+          result = await metaweblogAdapter.publish(credentials, normalizedArticle, { draftOnly: true })
           break
         default:
           result = { success: false, error: '不支持的 CMS 类型' }

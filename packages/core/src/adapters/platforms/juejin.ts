@@ -328,6 +328,7 @@ export class JuejinAdapter extends CodeAdapter {
         postId: draftId,
         postUrl: draftUrl,
         draftOnly: true,
+        message: '发布失败，已保存为草稿',
       })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
