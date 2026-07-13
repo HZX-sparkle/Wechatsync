@@ -176,12 +176,47 @@ export class ZhihuAdapter extends CodeAdapter {
 
       logger.debug('Draft updated, status:', updateResponse.status)
 
+      const shouldPublish = options?.draftOnly === false
+
+      if (shouldPublish) {
+        try {
+          const publishResponse = await this.runtime.fetch(
+            `https://zhuanlan.zhihu.com/api/articles/${draftId}/publish`,
+            {
+              method: 'PUT',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-requested-with': 'fetch',
+              },
+              body: JSON.stringify({ title: article.title }),
+            }
+          )
+
+          if (publishResponse.ok) {
+            const publishedUrl = `https://zhuanlan.zhihu.com/p/${draftId}`
+
+            return this.createResult(true, {
+              postId: draftId,
+              postUrl: publishedUrl,
+              draftOnly: false,
+              message: '文章已发布',
+            })
+          }
+          logger.warn('Zhihu publish failed, status:', publishResponse.status)
+          // 降级：返回草稿链接
+        } catch (publishError) {
+          logger.warn('Zhihu publish failed, fallback to draft:', publishError)
+          // 降级：返回草稿链接
+        }
+      }
+
       const draftUrl = `https://zhuanlan.zhihu.com/p/${draftId}/edit`
 
       return this.createResult(true, {
         postId: draftId,
         postUrl: draftUrl,
-        draftOnly: options?.draftOnly ?? true,
+        draftOnly: (!shouldPublish),
       })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
