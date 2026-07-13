@@ -211,62 +211,127 @@ export class CSDNAdapter extends CodeAdapter {
       // Generate signature and save article
       const apiPath = '/blog-console-api/v3/mdeditor/saveArticle'
       const headers = await this.signRequest(apiPath)
+      const url = `https://bizapi.csdn.net${apiPath}`
+      const isPublish = options?.draftOnly === false
 
-      const response = await this.runtime.fetch(
-        `https://bizapi.csdn.net${apiPath}`,
-        {
+      // Common body fields shared between initial attempt and retry
+      const baseBody = {
+        title: article.title,
+        markdowncontent: markdown,
+        content: htmlContent,
+        readType: 'public',
+        level: 0,
+        tags: '',
+        categories: '',
+        type: 'original',
+        original_link: '',
+        authorized_status: false,
+        not_auto_saved: '1',
+        source: 'pc_mdeditor',
+        cover_images: [] as string[],
+        cover_type: 1,
+        is_new: 1,
+        vote_id: 0,
+        resource_id: '',
+        creator_activity_id: '',
+      }
+
+      try {
+        // First attempt with publish or draft mode
+        const response = await this.runtime.fetch(url, {
           method: 'POST',
           credentials: 'include',
           headers,
           body: JSON.stringify({
-            title: article.title,
-            markdowncontent: markdown,
-            content: htmlContent,
-            readType: 'public',
-            level: 0,
-            tags: '',
-            status: options?.draftOnly === false ? 1 : 2, // 1=发布, 2=草稿
-            categories: '',
-            type: 'original',
-            original_link: '',
-            authorized_status: false,
-            not_auto_saved: '1',
-            source: 'pc_mdeditor',
-            cover_images: [],
-            cover_type: 1,
-            is_new: 1,
-            vote_id: 0,
-            resource_id: '',
-            pubStatus: options?.draftOnly === false ? 'public' : 'draft',
-            creator_activity_id: '',
+            ...baseBody,
+            status: isPublish ? 1 : 2,
+            pubStatus: isPublish ? 'public' : 'draft',
           }),
+        })
+
+        const res = await response.json() as {
+          code: number
+          message?: string
+          msg?: string
+          data?: { id: string }
         }
-      )
 
-      const res = await response.json() as {
-        code: number
-        message?: string
-        msg?: string
-        data?: { id: string }
+        logger.debug('Save response:', res)
+
+        if (res.code !== 200 || !res.data?.id) {
+          // If publish mode failed, retry as draft to avoid losing content
+          if (isPublish) {
+            logger.warn('Publish failed, retrying as draft:', res.msg || res.message)
+            const retryResponse = await this.runtime.fetch(url, {
+              method: 'POST',
+              credentials: 'include',
+              headers,
+              body: JSON.stringify({
+                ...baseBody,
+                status: 2,
+                pubStatus: 'draft',
+              }),
+            })
+            const retryRes = await retryResponse.json() as {
+              code: number
+              data?: { id: string }
+            }
+            logger.debug('Retry response:', retryRes)
+            if (retryRes.code === 200 && retryRes.data?.id) {
+              return this.createResult(true, {
+                postId: retryRes.data.id,
+                postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
+                draftOnly: true,
+                message: '发布失败，已保存为草稿',
+              })
+            }
+          }
+          throw new Error(res.msg || res.message || '保存草稿失败')
+        }
+
+        const postId = res.data.id
+        const publishedUrl = `https://blog.csdn.net/article/details/${postId}`
+        const draftUrl = `https://editor.csdn.net/md?articleId=${postId}`
+
+        return this.createResult(true, {
+          postId: postId,
+          postUrl: isPublish ? publishedUrl : draftUrl,
+          draftOnly: options?.draftOnly ?? true,
+          message: isPublish ? '文章已发布' : undefined,
+        })
+      } catch (error) {
+        // If publish mode failed with an exception (network/parse error), also try draft retry
+        if (isPublish) {
+          try {
+            logger.warn('Publish failed with error, retrying as draft:', error)
+            const retryResponse = await this.runtime.fetch(url, {
+              method: 'POST',
+              credentials: 'include',
+              headers,
+              body: JSON.stringify({
+                ...baseBody,
+                status: 2,
+                pubStatus: 'draft',
+              }),
+            })
+            const retryRes = await retryResponse.json() as {
+              code: number
+              data?: { id: string }
+            }
+            if (retryRes.code === 200 && retryRes.data?.id) {
+              return this.createResult(true, {
+                postId: retryRes.data.id,
+                postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
+                draftOnly: true,
+                message: '发布失败，已保存为草稿',
+              })
+            }
+          } catch {
+            // Ignore retry errors, fall through to the final error handler below
+          }
+        }
+        throw error
       }
-
-      logger.debug('Save response:', res)
-
-      if (res.code !== 200 || !res.data?.id) {
-        throw new Error(res.msg || res.message || '保存草稿失败')
-      }
-
-      const postId = res.data.id
-      const username = '' // CSDN doesn't expose username in this API response
-      const draftUrl = `https://editor.csdn.net/md?articleId=${postId}`
-      const publishedUrl = `https://blog.csdn.net/article/details/${postId}`
-
-      return this.createResult(true, {
-        postId: postId,
-        postUrl: options?.draftOnly === false ? publishedUrl : draftUrl,
-        draftOnly: options?.draftOnly ?? true,
-        message: options?.draftOnly === false ? '文章已发布' : undefined,
-      })
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
     }))
