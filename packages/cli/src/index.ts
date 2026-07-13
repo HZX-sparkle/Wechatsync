@@ -656,6 +656,7 @@ program
 
     const context = await launchProfile(account.id, false)
     const page = context.pages()[0] || await context.newPage()
+    await injectAntiDetect(page)
 
     try {
       await page.goto(config.loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
@@ -673,9 +674,9 @@ program
         await page.waitForTimeout(3000)
       } catch {
         console.error(chalk.red('  登录超时'))
+        await context.close()
         removeAccount(account.id)
         removeProfile(account.id)
-        await context.close()
         process.exit(1)
       }
 
@@ -717,9 +718,9 @@ program
       console.log(`  ID: ${chalk.gray(account.id)}`)
     } catch (error) {
       console.error(chalk.red('登录失败:'), (error as Error).message)
+      await context.close()
       removeAccount(account.id)
       removeProfile(account.id)
-      await context.close()
       process.exit(1)
     }
   })

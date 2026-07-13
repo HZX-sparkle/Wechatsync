@@ -11,4 +11,6 @@ export default defineConfig({
   },
   // 把 mcp-server 的代码打包进来，不作为外部依赖
   noExternal: ['@wechatsync/mcp-server'],
+  // Playwright 有原生模块，不能打包
+  external: ['playwright'],
 })

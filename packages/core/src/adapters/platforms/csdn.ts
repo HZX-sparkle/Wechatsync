@@ -208,128 +208,84 @@ export class CSDNAdapter extends CodeAdapter {
       // Get HTML content (CSDN API needs both markdown and HTML)
       const htmlContent = article.html || ''
 
-      // Generate signature and save article
-      const apiPath = '/blog-console-api/v3/mdeditor/saveArticle'
-      const headers = await this.signRequest(apiPath)
-      const url = `https://bizapi.csdn.net${apiPath}`
+      const apiPath = '/blog-console-api/v1/postedit/saveArticle'
+      const caKey = '203803574'
+      const hmacSecret = '9znpamsyl2c7cdrr9sas0le9vbc3r6ba'
+      const nonce = this.createUuid()
+      const signStr = `POST\n*/*\n\napplication/json\n\nx-ca-key:${caKey}\nx-ca-nonce:${nonce}\n${apiPath}`
+      const signature = await this.hmacSha256(signStr, hmacSecret)
       const isPublish = options?.draftOnly === false
 
-      // Common body fields shared between initial attempt and retry
-      const baseBody = {
-        title: article.title,
-        markdowncontent: markdown,
-        content: htmlContent,
-        readType: 'public',
-        level: 0,
-        tags: '',
-        categories: '',
-        type: 'original',
-        original_link: '',
-        authorized_status: false,
-        not_auto_saved: '1',
-        source: 'pc_mdeditor',
-        cover_images: [] as string[],
-        cover_type: 1,
-        is_new: 1,
-        vote_id: 0,
-        resource_id: '',
-        creator_activity_id: '',
+      const headers: Record<string, string> = {
+        'accept': '*/*',
+        'content-type': 'application/json',
+        'x-ca-key': caKey,
+        'x-ca-nonce': nonce,
+        'x-ca-signature': signature,
+        'x-ca-signature-headers': 'x-ca-key,x-ca-nonce',
       }
+      const url = `https://bizapi.csdn.net${apiPath}`
 
       try {
-        // First attempt with publish or draft mode
         const response = await this.runtime.fetch(url, {
           method: 'POST',
           credentials: 'include',
           headers,
           body: JSON.stringify({
-            ...baseBody,
-            status: isPublish ? 0 : 2,
+            article_id: '',
+            title: (article.title || '').slice(0, 100),
+            description: (article.summary || article.title || '').slice(0, 256),
+            content: htmlContent,
+            markdowncontent: markdown,
+            tags: '',
+            categories: '',
+            type: 'original',
+            status: 2,
+            read_type: 'public',
+            reason: '',
+            resource_url: '',
+            resource_id: '',
+            original_link: '',
+            authorized_status: false,
+            check_original: false,
+            editor_type: 0,
+            plan: [],
+            vote_id: 0,
+            scheduled_time: 0,
+            level: '1',
+            cover_type: 1,
+            cover_images: [] as string[],
+            not_auto_saved: 0,
+            is_new: 1,
           }),
         })
 
         const res = await response.json() as {
-          code: number
-          message?: string
-          msg?: string
-          data?: { id: string }
+          code: number; message?: string; msg?: string
+          data?: { article_id?: string; id?: string }
         }
 
-        logger.debug('Save response:', res)
-
-        if (res.code !== 200 || !res.data?.id) {
-          // If publish mode failed, retry as draft to avoid losing content
-          if (isPublish) {
-            logger.warn('Publish failed, retrying as draft:', JSON.stringify(res).substring(0, 500))
-            const retryResponse = await this.runtime.fetch(url, {
-              method: 'POST',
-              credentials: 'include',
-              headers,
-              body: JSON.stringify({
-                ...baseBody,
-                status: 2,
-                pubStatus: 'draft',
-              }),
-            })
-            const retryRes = await retryResponse.json() as {
-              code: number
-              data?: { id: string }
-            }
-            logger.debug('Retry response:', retryRes)
-            if (retryRes.code === 200 && retryRes.data?.id) {
-              return this.createResult(true, {
-                postId: retryRes.data.id,
-                postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
-                draftOnly: true,
-                message: `发布失败(res.data=${JSON.stringify(res.data)}, res.code=${res.code})，已保存为草稿`,
-              })
-            }
-          }
-          throw new Error(res.msg || res.message || '保存草稿失败')
+        if (res.code !== 200) {
+          throw new Error(res.msg || res.message || `保存失败(code=${res.code})`)
         }
 
-        const postId = res.data.id
-        const publishedUrl = `https://blog.csdn.net/article/details/${postId}`
-        const draftUrl = `https://editor.csdn.net/md?articleId=${postId}`
+        const articleId = res.data?.article_id || res.data?.id || ''
+        if (!articleId) {
+          throw new Error('未获取到文章ID')
+        }
 
         return this.createResult(true, {
-          postId: postId,
-          postUrl: isPublish ? publishedUrl : draftUrl,
-          draftOnly: options?.draftOnly ?? true,
-          message: isPublish ? '文章已发布' : undefined,
+          postId: articleId,
+          postUrl: isPublish
+            ? `https://blog.csdn.net/article/details/${articleId}`
+            : `https://editor.csdn.net/md?articleId=${articleId}`,
+          draftOnly: true,
+          message: isPublish ? '草稿已保存，正在发布...' : undefined,
         })
       } catch (error) {
-        // If publish mode failed with an exception (network/parse error), also try draft retry
-        if (isPublish) {
-          try {
-            logger.warn('Publish failed with error, retrying as draft:', error)
-            const retryResponse = await this.runtime.fetch(url, {
-              method: 'POST',
-              credentials: 'include',
-              headers,
-              body: JSON.stringify({
-                ...baseBody,
-                status: 2,
-                pubStatus: 'draft',
-              }),
-            })
-            const retryRes = await retryResponse.json() as {
-              code: number
-              data?: { id: string }
-            }
-            if (retryRes.code === 200 && retryRes.data?.id) {
-              return this.createResult(true, {
-                postId: retryRes.data.id,
-                postUrl: `https://editor.csdn.net/md?articleId=${retryRes.data.id}`,
-                draftOnly: true,
-                message: `发布失败(${(error as Error).message})，已保存为草稿`,
-              })
-            }
-          } catch {
-            // Ignore retry errors, fall through to the final error handler below
-          }
-        }
-        throw error
+        return this.createResult(false, {
+          error: (error as Error).message,
+        })
       }
     }).catch((error) => this.createResult(false, {
       error: (error as Error).message,
