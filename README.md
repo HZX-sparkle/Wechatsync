@@ -222,7 +222,9 @@ pnpm build
 ### v2.0.10 (2026-07-13)
 
 - 🆕 Playwright 持久化 Profile 账号管理 — `login`/`accounts`/`logout` 命令
-- 🆕 一键自动发布（`--publish`）— 掘金/CSDN 支持 Playwright 自动点击发布
+- 🆕 一键自动发布（`--publish`）— Playwright 自动完成分类/标签/摘要/点击发布
+  - CSDN：自动添加标签 → 点击发布博客
+  - 掘金：选择分类 → 添加标签 → 填写摘要 → 确定并发布
 - 🆕 同一平台多账号支持 — Profile 由 Chromium 自动管理
 - 🆕 移植 MultiPost publish-agent 反检测脚本
 
