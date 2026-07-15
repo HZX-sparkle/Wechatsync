@@ -150,20 +150,15 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       const nextBtn = page.locator('button.n-button--primary-type').filter({ hasText: '下一步' })
       await nextBtn.waitFor({ state: 'visible', timeout: 10000 })
 
-      // Click "下一步" twice: first click triggers auto-cover selection,
-      // second click proceeds to publish confirmation
+      // Click "下一步" twice: first triggers cover auto-select, second opens publish dialog
       await nextBtn.click({ force: true })
       await page.waitForTimeout(2000)
       await nextBtn.click({ force: true })
-      await page.waitForTimeout(3000)
-      await page.waitForTimeout(3000)
+      await page.waitForTimeout(2000)
 
-      // Step 2: Click confirmation publish button
-      const confirmBtn = page.locator('button').filter({ hasText: /发布|确定发布|确认发布|提交/ })
-      if (await confirmBtn.count() > 0) {
-        await confirmBtn.first().click({ force: true })
-        await page.waitForTimeout(5000)
-      }
+      // Click "发布" in the publish dialog
+      await page.locator('button').filter({ hasText: /发布/ }).last().click({ force: true })
+      await page.waitForTimeout(5000)
     },
   },
 }
