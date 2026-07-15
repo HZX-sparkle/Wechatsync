@@ -8,8 +8,9 @@
   - `wechatsync logout <id>` — 删除账号及 Profile
   - 同一平台支持多账号，Profile 由 Chromium 自动管理
 - 🆕 新增一键自动发布功能（`--publish`）
-  - 掘金：Playwright 自动点击发布按钮
   - CSDN：自动添加标签 → 点击发布博客
+  - 掘金：自动选择分类 → 添加标签 → 填写摘要 → 确定并发布
+  - 自动捕获发布后的真实文章链接
   - 复用已保存的 Profile，无需重复登录
 - 🆕 移植 MultiPost publish-agent 的反检测脚本
 - 🔧 修复 CSDN/掘金 API 发布失败问题
