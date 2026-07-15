@@ -182,36 +182,26 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     postLoginUrl: 'https://baijiahao.baidu.com',
     editorUrl: (id: string) => `https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=${id}`,
     async doPublish(page: Page) {
-      await page.waitForTimeout(5000)
-      // Click "发布" button
+      await page.waitForTimeout(8000)
+      // Step 1: Click "单图" to select cover type, then "选择封面" to pick one
+      try {
+        await page.locator('span, div, button').filter({ hasText: '单图' }).first().click({ force: true })
+        await page.waitForTimeout(500)
+      } catch {}
+      try {
+        await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
+        await page.waitForTimeout(2000)
+      } catch {}
+
+      // Step 2: Click "发布"
       await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
-      await page.waitForTimeout(2000)
-      // Check for confirmation dialog
-      const afterBtns = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
-          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
-        })).filter(b => b.t)
-      )
-      console.log(`  [Debug] After publish click: ${JSON.stringify(afterBtns)}`)
-      // Wait for dialog/confirm buttons to appear
-      await page.waitForTimeout(2000)
-      const confirmDiag = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'))
-        return btns.filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
-          t: (b as HTMLButtonElement).textContent,
-          raw: (b as HTMLButtonElement).textContent?.split('').map(c => c.charCodeAt(0)).join(','),
-          c: b.className?.substring(0, 40),
-        })).filter(b => b.t && b.t.trim())
-      })
-      console.log(`  [Debug] Confirm candidates: ${JSON.stringify(confirmDiag)}`)
-      // Click any confirm button
+      await page.waitForTimeout(3000)
+
+      // Step 3: Click "确认" via JS (button may be hidden behind overlay)
       await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'))
-        const targets = btns.filter(b => {
-          const t = (b as HTMLButtonElement).textContent || ''
-          return t.includes('知道') || t.includes('确定') || t.includes('确认')
-        })
-        if (targets.length > 0) (targets[0] as HTMLButtonElement).click()
+        const confirm = btns.find(b => b.textContent?.includes('确认'))
+        if (confirm) (confirm as HTMLButtonElement).click()
       })
       await page.waitForTimeout(5000)
     },
@@ -242,13 +232,25 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     editorUrl: (id: string) => `https://segmentfault.com/write?draftId=${id}`,
     async doPublish(page: Page) {
       await page.waitForTimeout(10000)
-      console.log(`  [Debug] SF URL: ${page.url()}`)
-      const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '')
-      console.log(`  [Debug] SF body: ${bodyText.substring(0, 300)}`)
-      // Try clicking a publish button
-      const btns = await page.locator('button').count()
-      console.log(`  [Debug] SF buttons: ${btns}`)
-      await page.locator('button').filter({ hasText: /发布|提交|投稿/ }).first().click({ force: true }).catch(() => {})
+      // Step 1: Add a tag if needed
+      try {
+        const addTagBtn = page.locator('button, a, span').filter({ hasText: /添加标签/ })
+        if (await addTagBtn.count() > 0) {
+          await addTagBtn.first().click()
+          await page.waitForTimeout(1000)
+          // Click the first tag suggestion
+          const firstTag = page.locator('.tag-suggestion-item, .tag-item, [class*="tag"]').filter({ hasText: /前端|后端|技术/ }).first()
+          if (await firstTag.count() > 0) {
+            await firstTag.click()
+            await page.waitForTimeout(500)
+          }
+        }
+      } catch { /* tag may already exist */ }
+
+      // Step 2: Click "提交" to publish
+      const submitBtn = page.locator('button').filter({ hasText: /发布|提交/ }).first()
+      await submitBtn.click()
+      await page.waitForTimeout(5000)
       await page.waitForTimeout(5000)
     },
   },
