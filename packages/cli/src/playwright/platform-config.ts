@@ -161,6 +161,79 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       await page.waitForTimeout(5000)
     },
   },
+  bilibili: {
+    name: '哔哩哔哩',
+    loginUrl: 'https://passport.bilibili.com/login',
+    postLoginUrl: 'https://member.bilibili.com',
+    editorUrl: (id: string) => `https://member.bilibili.com/platform/upload/text/edit?aid=${id}`,
+    async doPublish(page: Page) {
+      await page.waitForTimeout(5000)
+      // Diagnose buttons
+      const btns = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
+          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
+        })).filter(b => b.t)
+      )
+      console.log(`  [Debug] Bilibili buttons: ${JSON.stringify(btns)}`)
+      // Try clicking publish
+      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(5000)
+    },
+  },
+
+  baijiahao: {
+    name: '百家号',
+    loginUrl: 'https://baijiahao.baidu.com/builder/rc/login',
+    postLoginUrl: 'https://baijiahao.baidu.com',
+    editorUrl: (id: string) => `https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=${id}`,
+    async doPublish(page: Page) {
+      await page.waitForTimeout(5000)
+      const btns = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
+          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
+        })).filter(b => b.t)
+      )
+      console.log(`  [Debug] Baijiahao buttons: ${JSON.stringify(btns)}`)
+      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(5000)
+    },
+  },
+
+  '51cto': {
+    name: '51CTO',
+    loginUrl: 'https://blog.51cto.com/login',
+    postLoginUrl: 'https://blog.51cto.com',
+    editorUrl: (id: string) => `https://blog.51cto.com/blogger/draft/${id}`,
+    async doPublish(page: Page) {
+      await page.waitForTimeout(5000)
+      const btns = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
+          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
+        })).filter(b => b.t)
+      )
+      console.log(`  [Debug] 51CTO buttons: ${JSON.stringify(btns)}`)
+      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(5000)
+    },
+  },
+
+  segmentfault: {
+    name: 'SegmentFault',
+    loginUrl: 'https://segmentfault.com/user/login',
+    postLoginUrl: 'https://segmentfault.com',
+    editorUrl: (id: string) => `https://segmentfault.com/write?draftId=${id}`,
+    async doPublish(page: Page) {
+      await page.waitForTimeout(5000)
+      const btns = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
+          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
+        })).filter(b => b.t)
+      )
+      console.log(`  [Debug] SegmentFault buttons: ${JSON.stringify(btns)}`)
+      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(5000)
+    },
+  },
 }
 
 export function getPlatformConfig(platformKey: string): PlatformPublishConfig | null {
