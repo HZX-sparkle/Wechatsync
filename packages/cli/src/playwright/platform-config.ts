@@ -167,24 +167,20 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     postLoginUrl: 'https://member.bilibili.com',
     editorUrl: (id: string) => `https://member.bilibili.com/platform/upload/text/edit?aid=${id}`,
     async doPublish(page: Page) {
-      await page.waitForTimeout(8000)
+      await page.waitForTimeout(10000)
       console.log(`  [Debug] B站 URL: ${page.url()}`)
-      // Scan ALL clickable elements
-      const scan = await page.evaluate(() => {
-        const all = Array.from(document.querySelectorAll('button, a, [class*="btn"], span[class*="publish"], div[class*="submit"]'))
-          .filter(el => !!(el as HTMLElement).offsetParent)
-          .map(el => ({
-            tag: el.tagName,
-            t: (el as HTMLElement).textContent?.trim().substring(0, 30),
-            c: (el as HTMLElement).className?.substring(0, 50),
-            href: (el as HTMLAnchorElement).href || '',
-          }))
-        return all.slice(0, 20)
-      })
-      console.log(`  [Debug] B站 elements: ${JSON.stringify(scan)}`)
-      // Try clicking publish button
-      await page.locator('button').filter({ hasText: /发布|发表/ }).first().click({ force: true }).catch(() => {})
-      await page.waitForTimeout(5000)
+      console.log(`  [Debug] Page title: ${await page.title()}`)
+      // Check if we're on the right page
+      const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '')
+      console.log(`  [Debug] Body: ${bodyText.substring(0, 200)}`)
+      // Click "发布" button
+      const pubBtn = page.locator('button').filter({ hasText: '发布' })
+      const count = await pubBtn.count()
+      console.log(`  [Debug] Publish buttons: ${count}`)
+      if (count > 0) {
+        await pubBtn.last().click()
+        await page.waitForTimeout(5000)
+      }
     },
   },
 

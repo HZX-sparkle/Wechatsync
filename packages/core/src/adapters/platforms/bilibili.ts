@@ -123,7 +123,7 @@ export class BilibiliAdapter extends CodeAdapter {
           title: article.title,
           content: content,
           csrf: this.csrf,
-          save: '0',
+          save: options?.draftOnly === false ? '1' : '0',
           pgc_id: '0',
         }
       )
