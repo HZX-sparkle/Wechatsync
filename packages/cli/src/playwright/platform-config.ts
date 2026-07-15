@@ -6,6 +6,7 @@ import type { Page } from 'playwright'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import zlib from 'zlib'
 
 /** Generate a simple blue PNG cover image and return its file path */
 function generateCoverPng(): string {
@@ -55,15 +56,8 @@ function generateCoverPng(): string {
       rawData[p + 2] = 204 // B
     }
   }
-  // Simple zlib: store method (uncompressed)
-  const cmf = 0x78; const flg = 0x01
-  const adler32 = (buf: Buffer): Buffer => {
-    let a = 1, b = 0
-    for (let i = 0; i < buf.length; i++) { a = (a + buf[i]) % 65521; b = (b + a) % 65521 }
-    const val = ((b >>> 0) * 65536 + (a >>> 0)) >>> 0
-    const r = Buffer.alloc(4); r.writeUInt32BE(val, 0); return r
-  }
-  const compressed = Buffer.concat([Buffer.from([cmf, flg]), rawData, adler32(rawData)])
+  // Use proper zlib deflate
+  const compressed = zlib.deflateSync(rawData)
 
   const idatLen = Buffer.alloc(4); idatLen.writeUInt32BE(compressed.length, 0)
   const idatType = Buffer.from('IDAT')
@@ -261,34 +255,35 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     async doPublish(page: Page) {
       await page.waitForTimeout(8000)
 
-      // Step 1: Upload cover image
-      try {
-        // Click "单图" (single cover) first
-        await page.locator('span, div').filter({ hasText: '单图' }).first().click({ force: true })
-        await page.waitForTimeout(500)
-      } catch {}
-
-      // Click "选择封面" to trigger file upload dialog
+      // Step 1: Click "选择封面" to open the cover dialog
       await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
-      await page.waitForTimeout(1000)
+      await page.waitForTimeout(1500)
 
-      // Upload a locally-generated cover image
+      // Step 2: Upload cover — find the LAST file input (dialog's image upload)
       const coverPath = generateCoverPng()
-      const fileInput = page.locator('input[type="file"]').first()
-      if (await fileInput.count() > 0) {
-        await fileInput.setInputFiles(coverPath)
+      const allInputs = page.locator('input[type="file"]')
+      const inputCount = await allInputs.count()
+      console.log(`  [Debug] Found ${inputCount} file input(s)`)
+      if (inputCount > 0) {
+        // Use the last file input (likely the cover dialog's image upload)
+        await allInputs.last().setInputFiles(coverPath)
         await page.waitForTimeout(3000)
       }
 
-      // Step 2: Click "发布"
+      // Step 3: Click "发布"
       await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
-      await page.waitForTimeout(3000)
+      await page.waitForTimeout(2000)
 
-      // Step 3: Click "确认" via JS
+      // Step 4: Handle warnings — click "确定" in any confirmation dialog
       await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'))
-        const confirm = btns.find(b => b.textContent?.includes('确认'))
-        if (confirm) (confirm as HTMLButtonElement).click()
+        const targets = btns.filter(b => {
+          const t = b.textContent || ''
+          return t.includes('确定') || t.includes('确认') || t.includes('知道')
+        })
+        for (const btn of targets) {
+          (btn as HTMLButtonElement).click()
+        }
       })
       await page.waitForTimeout(5000)
     },
