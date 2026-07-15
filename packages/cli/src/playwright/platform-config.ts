@@ -167,16 +167,23 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     postLoginUrl: 'https://member.bilibili.com',
     editorUrl: (id: string) => `https://member.bilibili.com/platform/upload/text/edit?aid=${id}`,
     async doPublish(page: Page) {
-      await page.waitForTimeout(5000)
-      // Diagnose buttons
-      const btns = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
-          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
-        })).filter(b => b.t)
-      )
-      console.log(`  [Debug] Bilibili buttons: ${JSON.stringify(btns)}`)
-      // Try clicking publish
-      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(8000)
+      console.log(`  [Debug] B站 URL: ${page.url()}`)
+      // Scan ALL clickable elements
+      const scan = await page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll('button, a, [class*="btn"], span[class*="publish"], div[class*="submit"]'))
+          .filter(el => !!(el as HTMLElement).offsetParent)
+          .map(el => ({
+            tag: el.tagName,
+            t: (el as HTMLElement).textContent?.trim().substring(0, 30),
+            c: (el as HTMLElement).className?.substring(0, 50),
+            href: (el as HTMLAnchorElement).href || '',
+          }))
+        return all.slice(0, 20)
+      })
+      console.log(`  [Debug] B站 elements: ${JSON.stringify(scan)}`)
+      // Try clicking publish button
+      await page.locator('button').filter({ hasText: /发布|发表/ }).first().click({ force: true }).catch(() => {})
       await page.waitForTimeout(5000)
     },
   },
@@ -188,13 +195,36 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     editorUrl: (id: string) => `https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=${id}`,
     async doPublish(page: Page) {
       await page.waitForTimeout(5000)
-      const btns = await page.evaluate(() =>
+      // Click "发布" button
+      await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
+      await page.waitForTimeout(2000)
+      // Check for confirmation dialog
+      const afterBtns = await page.evaluate(() =>
         Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
           t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
         })).filter(b => b.t)
       )
-      console.log(`  [Debug] Baijiahao buttons: ${JSON.stringify(btns)}`)
-      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      console.log(`  [Debug] After publish click: ${JSON.stringify(afterBtns)}`)
+      // Wait for dialog/confirm buttons to appear
+      await page.waitForTimeout(2000)
+      const confirmDiag = await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+        return btns.filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
+          t: (b as HTMLButtonElement).textContent,
+          raw: (b as HTMLButtonElement).textContent?.split('').map(c => c.charCodeAt(0)).join(','),
+          c: b.className?.substring(0, 40),
+        })).filter(b => b.t && b.t.trim())
+      })
+      console.log(`  [Debug] Confirm candidates: ${JSON.stringify(confirmDiag)}`)
+      // Click any confirm button
+      await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+        const targets = btns.filter(b => {
+          const t = (b as HTMLButtonElement).textContent || ''
+          return t.includes('知道') || t.includes('确定') || t.includes('确认')
+        })
+        if (targets.length > 0) (targets[0] as HTMLButtonElement).click()
+      })
       await page.waitForTimeout(5000)
     },
   },
@@ -224,12 +254,14 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     editorUrl: (id: string) => `https://segmentfault.com/write?draftId=${id}`,
     async doPublish(page: Page) {
       await page.waitForTimeout(5000)
-      const btns = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('button')).filter(b => !!(b as HTMLElement).offsetParent).map(b => ({
-          t: (b as HTMLButtonElement).textContent?.trim().substring(0, 30),
-        })).filter(b => b.t)
+      // Scan all elements to understand the page
+      const scan = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('button, a, [class*="btn"]')).filter(el => !!(el as HTMLElement).offsetParent).map(el => ({
+          tag: el.tagName, t: (el as HTMLElement).textContent?.trim().substring(0, 30),
+        })).slice(0, 10)
       )
-      console.log(`  [Debug] SegmentFault buttons: ${JSON.stringify(btns)}`)
+      console.log(`  [Debug] SF elements: ${JSON.stringify(scan)}`)
+      // Try "提交" or "发布" — some SF editors use "发布文章"
       await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
       await page.waitForTimeout(5000)
     },
