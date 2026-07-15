@@ -255,28 +255,38 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     async doPublish(page: Page) {
       await page.waitForTimeout(8000)
 
-      // Step 1: Click "选择封面" to open the cover dialog
-      await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
-      await page.waitForTimeout(1500)
+      // Step 1: Dump HTML around the cover area to understand the DOM
+      const htmlDump = await page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll('*'))
+        const coverEls = all.filter(el => el.textContent?.includes('封面') && !!(el as HTMLElement).offsetParent)
+        return coverEls.slice(0, 5).map(el => ({
+          tag: el.tagName,
+          html: el.outerHTML?.substring(0, 400),
+          parent: (el.parentElement as HTMLElement)?.outerHTML?.substring(0, 400),
+        }))
+      })
+      console.log(`  [Debug] Cover HTML: ${JSON.stringify(htmlDump).substring(0, 800)}`)
+      await page.waitForTimeout(2000)
 
-      // Step 2: Click "点击本地上传" to trigger file input, then upload
-      const uploadBtn = page.locator('span, div, button').filter({ hasText: /本地上传|上传/ }).first()
-      if (await uploadBtn.count() > 0) {
-        // Set up file chooser handler BEFORE clicking
-        const fileChooserPromise = page.waitForEvent('filechooser')
-        await uploadBtn.click({ force: true })
-        const chooser = await fileChooserPromise.catch(() => null)
+      // Step 2: Upload cover via dialog
+      // Wait for "本地上传" to appear in the dialog
+      const uploadBtn = page.locator('span, div, p').filter({ hasText: /本地上传/ }).first()
+      await uploadBtn.waitFor({ state: 'visible', timeout: 10000 })
+
+      // Dialog has an image file input — find the one that accepts images
+      const imgInput = page.locator('input[type="file"][accept*="image"], input[type="file"]:not([accept])').first()
+      if (await imgInput.count() === 0) {
+        // Use fileChooser approach: intercept native file dialog
+        const fcPromise = page.waitForEvent('filechooser', { timeout: 5000 })
+        await uploadBtn.click()
+        const chooser = await fcPromise.catch(() => null)
         if (chooser) {
           await chooser.setFiles(generateCoverPng())
           await page.waitForTimeout(3000)
         }
       } else {
-        // Fallback: find file input directly
-        const inputs = page.locator('input[type="file"]')
-        if (await inputs.count() > 0) {
-          await inputs.last().setInputFiles(generateCoverPng())
-          await page.waitForTimeout(3000)
-        }
+        await imgInput.setInputFiles(generateCoverPng())
+        await page.waitForTimeout(3000)
       }
 
       // Step 3: Click "发布"
