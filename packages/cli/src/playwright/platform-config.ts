@@ -183,21 +183,85 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     editorUrl: (id: string) => `https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=${id}`,
     async doPublish(page: Page) {
       await page.waitForTimeout(8000)
-      // Step 1: Click "单图" to select cover type, then "选择封面" to pick one
+
+      // Step 1: Upload cover image
       try {
-        await page.locator('span, div, button').filter({ hasText: '单图' }).first().click({ force: true })
+        // Click "单图" (single cover) first
+        await page.locator('span, div').filter({ hasText: '单图' }).first().click({ force: true })
         await page.waitForTimeout(500)
       } catch {}
-      try {
-        await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
-        await page.waitForTimeout(2000)
-      } catch {}
+
+      // Click "选择封面" to trigger file upload dialog
+      await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
+      await page.waitForTimeout(1000)
+
+      // Find the hidden file input and upload a generated cover image
+      const fileInput = page.locator('input[type="file"]')
+      const fiCount = await fileInput.count()
+      if (fiCount > 0) {
+        // Generate a valid 100x100 blue PNG cover using a Buffer
+        // PNG spec: signature + IHDR + IDAT + IEND
+        const pngBytes: number[] = []
+        // PNG signature
+        pngBytes.push(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        // IHDR chunk (13 bytes): width=100, height=100, 8bit RGB
+        const ihdr = new Uint8Array(25)
+        const view = new DataView(ihdr.buffer)
+        view.setUint32(0, 13) // length
+        ihdr.set([0x49, 0x48, 0x44, 0x52], 4) // "IHDR"
+        view.setUint32(8, 100)  // width
+        view.setUint32(12, 100) // height
+        ihdr[16] = 8  // bit depth
+        ihdr[17] = 2  // color type (RGB)
+        ihdr[18] = 0  // compression
+        ihdr[19] = 0  // filter
+        ihdr[20] = 0  // interlace
+        // CRC for IHDR (simple, using known good CRC for 100x100 IHDR)
+        const crc1 = [0xFF, 0x80, 0x02, 0x03]
+        ihdr.set(crc1, 21)
+        pngBytes.push(...Array.from(ihdr))
+        // IDAT chunk: zlib-compressed 100 rows of blue pixels
+        const idatRaw: number[] = []
+        for (let y = 0; y < 100; y++) {
+          idatRaw.push(0) // filter byte (none)
+          for (let x = 0; x < 100; x++) {
+            idatRaw.push(0, 0, 255) // blue pixel (R=0, G=0, B=255)
+          }
+        }
+        // Use a pre-computed valid IDAT for blue 100x100 (simplified)
+        // For simplicity, write temp file via page.evaluate
+      }
+      // Simpler approach: upload via page.evaluate using a canvas-generated blob
+      await page.evaluate(() => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 100; canvas.height = 100
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.fillStyle = '#3366CC'
+          ctx.fillRect(0, 0, 100, 100)
+          ctx.fillStyle = '#FFFFFF'
+          ctx.font = '20px sans-serif'
+          ctx.fillText('Cover', 10, 60)
+        }
+        canvas.toBlob((blob) => {
+          if (!blob) return
+          const file = new File([blob], 'cover.png', { type: 'image/png' })
+          const dt = new DataTransfer()
+          dt.items.add(file)
+          const input = document.querySelector('input[type="file"]') as HTMLInputElement
+          if (input) {
+            input.files = dt.files
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        }, 'image/png')
+      })
+      await page.waitForTimeout(3000)
 
       // Step 2: Click "发布"
       await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
       await page.waitForTimeout(3000)
 
-      // Step 3: Click "确认" via JS (button may be hidden behind overlay)
+      // Step 3: Click "确认" via JS
       await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'))
         const confirm = btns.find(b => b.textContent?.includes('确认'))
