@@ -137,6 +137,59 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       } catch { return null }
     },
   },
+
+  weibo: {
+    name: '微博',
+    loginUrl: 'https://passport.weibo.com/sso/signin',
+    postLoginUrl: 'https://card.weibo.com',
+    editorUrl: (id: string) => `https://card.weibo.com/article/v5/editor#/draft/${id}`,
+    async doPublish(page: Page) {
+      await page.waitForTimeout(5000)
+
+      // Diagnose: check button disabled state
+      const nextInfo = await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+        const next = btns.find(b => b.textContent?.includes('下一步'))
+        if (!next) return 'not found'
+        return {
+          disabled: (next as HTMLButtonElement).disabled,
+          ariaDisabled: next.getAttribute('aria-disabled'),
+          class: next.className,
+          parentClass: (next.parentElement as HTMLElement)?.className?.substring(0, 60),
+        }
+      })
+      console.log(`  [Debug] Next button state: ${JSON.stringify(nextInfo)}`)
+
+      // Click using Playwright with force
+      await page.locator('button').filter({ hasText: '下一步' }).first().click({ force: true })
+      await page.waitForTimeout(3000)
+
+      // Diagnose: scan entire DOM for any modal/dialog content
+      const afterNext = await page.evaluate(() => {
+        const visible = Array.from(document.querySelectorAll('*')).filter(
+          el => !!(el as HTMLElement).offsetParent &&
+                 (el.textContent?.includes('发布') || el.textContent?.includes('确定') ||
+                  el.textContent?.includes('取消') || el.textContent?.includes('确认') ||
+                  el.textContent?.includes('下一步') || el.textContent?.includes('提交'))
+        ).map(el => ({
+          tag: el.tagName,
+          t: el.textContent?.trim().substring(0, 60),
+          c: (el as HTMLElement).className?.substring(0, 40),
+        })).slice(0, 15)
+        return visible
+      })
+      console.log(`  [Debug] After click - publish-related: ${JSON.stringify(afterNext)}`)
+
+      // Step 2: Look for confirmation button
+      const confirmBtn = page.locator('button').filter({ hasText: /发布|确定发布|确认/ })
+      const count = await confirmBtn.count()
+      console.log(`  [Debug] Confirm buttons found: ${count}`)
+      if (count > 0) {
+        await confirmBtn.first().click({ force: true })
+        await page.waitForTimeout(5000)
+      }
+    },
+  },
 }
 
 export function getPlatformConfig(platformKey: string): PlatformPublishConfig | null {
