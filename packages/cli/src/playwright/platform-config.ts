@@ -84,14 +84,10 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
         }, { timeout: 15000 })
       } catch { /* button stayed disabled */ }
       await page.locator('button').filter({ hasText: /确定并发布/ }).click({ force: true })
-      // Wait for redirect to published article page
-      await page.waitForTimeout(3000)
-      // Capture the final URL (Juejin redirects to post page after publish)
-      const finalUrl = page.url()
-      const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
-      if (postId) {
-        console.log(`  [Debug] Published post ID: ${postId}`)
-      }
+      // Wait for redirect to published post page
+      try {
+        await page.waitForURL((url: any) => url.toString().includes('/post/'), { timeout: 15000 })
+      } catch { /* no redirect */ }
     },
     async checkUsername(page: Page) {
       try {
