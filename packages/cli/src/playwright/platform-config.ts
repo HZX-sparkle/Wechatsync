@@ -48,61 +48,50 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       await popup.waitFor({ state: 'visible', timeout: 10000 })
       await page.waitForTimeout(500)
 
-      // Step 1: Category — click an item in the category-list (not a dropdown)
-      await page.evaluate(() => {
-        const items = document.querySelectorAll('.category-list .item')
-        // Check if one is already active
-        const active = document.querySelector('.category-list .item.active')
-        if (!active && items.length > 0) {
-          // Click the first non-active item
-          (items[0] as HTMLElement).click()
+      // Step 1: Category — mouse click "后端" (usually pre-selected; click to trigger Vue model)
+      const catBox = await page.locator('.category-list .item').first().boundingBox()
+      if (catBox) {
+        await page.mouse.click(catBox.x + catBox.width / 2, catBox.y + catBox.height / 2)
+        await page.waitForTimeout(300)
+      }
+
+      // Step 2: Tags — mouse click to open dropdown, click option with force
+      const tagWrapBox = await page.locator('.byte-select__content-wrap').first().boundingBox()
+      if (tagWrapBox) {
+        await page.mouse.click(tagWrapBox.x + tagWrapBox.width / 2, tagWrapBox.y + tagWrapBox.height / 2)
+        await page.waitForTimeout(2500)
+        const opt = page.locator('.byte-select-option, .tag-option').first()
+        if (await opt.count() > 0) {
+          await opt.click({ force: true })
+          await page.waitForTimeout(500)
         }
-      })
+      }
+
+      // Step 3: Summary — click then type
+      await page.locator('.byte-input__textarea, textarea').first().click()
+      await page.waitForTimeout(200)
+      await page.locator('.byte-input__textarea, textarea').first().fill(
+        'WechatSync 是一款开源的多平台内容同步工具，支持一键将文章分发到掘金、CSDN、知乎等平台，极大提升自媒体运营效率。'
+      )
       await page.waitForTimeout(500)
 
-      // Step 2: Tags — click the tag select to open dropdown, then pick an option
-      await page.evaluate(() => {
-        // Find and click the tag select trigger
-        const popup = document.querySelector('.publish-popup.active') || document
-        const selects = popup.querySelectorAll('.byte-select__input, .byte-select__trigger')
-        // Click the first select (usually tags)
-        for (const sel of Array.from(selects)) {
-          const wrap = sel.closest('.byte-select__wrap, .byte-form__item')
-          if (wrap?.textContent?.includes('标签') || !wrap?.textContent?.includes('分类')) {
-            (sel as HTMLElement).click()
-            break
-          }
-        }
-      })
-      await page.waitForTimeout(1500)
-      // Click the first tag option in the dropdown
-      await page.evaluate(() => {
-        const options = document.querySelectorAll('.byte-select-dropdown .byte-option, .byte-overlay .byte-option, [class*="dropdown"] [class*="option"]')
-        if (options.length > 0) {
-          (options[0] as HTMLElement).click()
-        }
-      })
-      await page.waitForTimeout(500)
-
-      // Step 3: Fill summary textarea
-      await page.evaluate(() => {
-        const popup = document.querySelector('.publish-popup.active')
-        if (!popup) return
-        const ta = popup.querySelector('.byte-input__textarea, textarea') as HTMLTextAreaElement | null
-        if (ta) {
-          ta.value = '这是一篇由 WechatSync 自动发布功能生成的测试文章，用于验证 Playwright 一键发布流程是否正常工作的完整测试。'
-          ta.dispatchEvent(new Event('input', { bubbles: true }))
-        }
-      })
-      await page.waitForTimeout(500)
-
-      // Step 4: Click "确定并发布"
-      await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'))
-        const btn = btns.find(b => b.textContent?.includes('确定并发布') || b.textContent?.includes('确认并发布'))
-        if (btn) btn.click()
-      })
-      await page.waitForTimeout(5000)
+      // Step 4: Wait for "确定并发布" enabled, then click
+      try {
+        await page.waitForFunction(() => {
+          const btns = Array.from(document.querySelectorAll('button'))
+          const btn = btns.find(b => b.textContent?.includes('确定并发布'))
+          return btn && !(btn as HTMLButtonElement).disabled
+        }, { timeout: 15000 })
+      } catch { /* button stayed disabled */ }
+      await page.locator('button').filter({ hasText: /确定并发布/ }).click({ force: true })
+      // Wait for redirect to published article page
+      await page.waitForTimeout(3000)
+      // Capture the final URL (Juejin redirects to post page after publish)
+      const finalUrl = page.url()
+      const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
+      if (postId) {
+        console.log(`  [Debug] Published post ID: ${postId}`)
+      }
     },
     async checkUsername(page: Page) {
       try {

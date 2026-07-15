@@ -83,9 +83,13 @@ export async function publishArticle(
     console.log(`  [Playwright] 点击发布...`)
     await config.doPublish(page)
 
+    // Capture final URL (platform may redirect after publish)
+    const finalUrl = page.url()
     await page.waitForTimeout(2000)
     await context.close()
-    return { platform, success: true }
+    const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
+    const pubUrl = postId ? `https://juejin.cn/post/${postId}` : (finalUrl || undefined)
+    return { platform, success: true, url: pubUrl }
   } catch (error) {
     console.error(`  ❌ ${config.name} 发布出错:`, error)
     await context.close()
