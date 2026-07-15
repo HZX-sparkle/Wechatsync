@@ -935,6 +935,7 @@ program
                 for (const pr of pubResults) {
                   if (pr.success) {
                     result.draftOnly = false
+                    if (pr.url) result.postUrl = pr.url
                     if (pr.accountName) {
                       console.log(`    ${chalk.green('✓')} ${pr.accountName} ${chalk.green('已发布')}`)
                     }
@@ -953,6 +954,7 @@ program
                 if (pr.success) {
                   result.draftOnly = false
                   result.message = '已发布'
+                  if (pr.url) result.postUrl = pr.url
                 }
               }
             }

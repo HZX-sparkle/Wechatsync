@@ -83,26 +83,26 @@ export async function publishArticle(
     console.log(`  [Playwright] 点击发布...`)
     await config.doPublish(page)
 
-    // Capture final URL after navigation
-    await page.waitForTimeout(5000)
+    // Wait for navigation, capture final URL
+    await page.waitForLoadState('networkidle').catch(() => {})
+    await page.waitForTimeout(2000)
     const finalUrl = page.url()
     console.log(`  [Debug] Final URL: ${finalUrl}`)
 
     let pubUrl = finalUrl
     if (finalUrl.includes('/published')) {
-      // Extract first article link from published page
-      const firstLink = await page.evaluate(() => {
-        const allLinks = Array.from(document.querySelectorAll('a')).map(a => ({
-          href: (a as HTMLAnchorElement).href,
-          text: (a as HTMLAnchorElement).textContent?.trim().substring(0, 40),
-        }))
-        // Log for debug
-        return allLinks.filter(l => l.href.includes('/post/') || l.href.includes('article')).slice(0, 3)
-      })
-      console.log(`  [Debug] Published page links: ${JSON.stringify(firstLink)}`)
-      if (firstLink.length > 0 && firstLink[0].href) {
-        pubUrl = firstLink[0].href
-      }
+      await page.waitForTimeout(5000)
+      // Try to scroll to trigger lazy loading
+      await page.evaluate(() => window.scrollTo(0, 500))
+      await page.waitForTimeout(2000)
+      // Dump page text and links
+      const dump = await page.evaluate(() => ({
+        title: document.title,
+        bodyText: document.body?.innerText?.substring(0, 500),
+        allLinks: Array.from(document.querySelectorAll('a')).map(a => (a as HTMLAnchorElement).href).filter(h => h.includes('post') || h.includes('article')).slice(0, 5),
+      }))
+      console.log(`  [Debug] Page dump: ${JSON.stringify(dump).substring(0, 600)}`)
+      if (dump.allLinks.length > 0) pubUrl = dump.allLinks[0]
     } else {
       const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
       if (postId) pubUrl = `https://juejin.cn/post/${postId}`
