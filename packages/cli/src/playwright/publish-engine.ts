@@ -83,12 +83,32 @@ export async function publishArticle(
     console.log(`  [Playwright] 点击发布...`)
     await config.doPublish(page)
 
-    // Capture final URL (platform may redirect after publish)
+    // Capture final URL after navigation
+    await page.waitForTimeout(5000)
     const finalUrl = page.url()
-    await page.waitForTimeout(2000)
+    console.log(`  [Debug] Final URL: ${finalUrl}`)
+
+    let pubUrl = finalUrl
+    if (finalUrl.includes('/published')) {
+      // Extract first article link from published page
+      const firstLink = await page.evaluate(() => {
+        const allLinks = Array.from(document.querySelectorAll('a')).map(a => ({
+          href: (a as HTMLAnchorElement).href,
+          text: (a as HTMLAnchorElement).textContent?.trim().substring(0, 40),
+        }))
+        // Log for debug
+        return allLinks.filter(l => l.href.includes('/post/') || l.href.includes('article')).slice(0, 3)
+      })
+      console.log(`  [Debug] Published page links: ${JSON.stringify(firstLink)}`)
+      if (firstLink.length > 0 && firstLink[0].href) {
+        pubUrl = firstLink[0].href
+      }
+    } else {
+      const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
+      if (postId) pubUrl = `https://juejin.cn/post/${postId}`
+    }
+
     await context.close()
-    const postId = finalUrl.match(/\/post\/(\d+)/)?.[1] || ''
-    const pubUrl = postId ? `https://juejin.cn/post/${postId}` : (finalUrl || undefined)
     return { platform, success: true, url: pubUrl }
   } catch (error) {
     console.error(`  ❌ ${config.name} 发布出错:`, error)

@@ -75,19 +75,15 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       )
       await page.waitForTimeout(500)
 
-      // Step 4: Wait for "确定并发布" enabled, then click
-      try {
-        await page.waitForFunction(() => {
-          const btns = Array.from(document.querySelectorAll('button'))
-          const btn = btns.find(b => b.textContent?.includes('确定并发布'))
-          return btn && !(btn as HTMLButtonElement).disabled
-        }, { timeout: 15000 })
-      } catch { /* button stayed disabled */ }
-      await page.locator('button').filter({ hasText: /确定并发布/ }).click({ force: true })
-      // Wait for redirect to published post page
-      try {
-        await page.waitForURL((url: any) => url.toString().includes('/post/'), { timeout: 15000 })
-      } catch { /* no redirect */ }
+      // Step 4: Wait for button to enable, then click (no force — let Vue handle it)
+      await page.waitForFunction(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+        const btn = btns.find(b => b.textContent?.includes('确定并发布'))
+        return btn && !(btn as HTMLButtonElement).disabled
+      }, { timeout: 15000 }).catch(() => {})
+      const confirm = page.locator('button').filter({ hasText: /确定并发布/ })
+      await confirm.click()
+      await page.waitForTimeout(3000)
     },
     async checkUsername(page: Page) {
       try {
