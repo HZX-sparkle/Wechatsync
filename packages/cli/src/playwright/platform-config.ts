@@ -137,39 +137,6 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       } catch { return null }
     },
   },
-
-  zhihu: {
-    name: '知乎',
-    loginUrl: 'https://www.zhihu.com/signin',
-    postLoginUrl: 'https://www.zhihu.com',
-    editorUrl: (id: string) => `https://zhuanlan.zhihu.com/p/${id}/edit`,
-    async doPublish(page: Page) {
-      // Wait for publish button to appear and be enabled
-      await page.waitForFunction(() => {
-        const btns = Array.from(document.querySelectorAll('button'))
-        const btn = btns.find(b => {
-          const t = (b as HTMLButtonElement).textContent || ''
-          return t.includes('发布') && !(b as HTMLButtonElement).disabled
-        })
-        return !!btn
-      }, { timeout: 20000 })
-
-      const btn = page.locator('button').filter({ hasText: '发布' }).first()
-      await btn.waitFor({ state: 'visible', timeout: 5000 })
-      await page.waitForTimeout(500)
-      await btn.click()
-      // Wait for navigation to published page
-      await page.waitForTimeout(5000)
-    },
-    async checkUsername(page: Page) {
-      try {
-        return await page.evaluate(() => {
-          const el = document.querySelector('.AppHeader-profile .ProfileLink, [class*="avatar"] ~ span')
-          return el?.textContent?.trim() || null
-        })
-      } catch { return null }
-    },
-  },
 }
 
 export function getPlatformConfig(platformKey: string): PlatformPublishConfig | null {
