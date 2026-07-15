@@ -165,22 +165,14 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     name: '哔哩哔哩',
     loginUrl: 'https://passport.bilibili.com/login',
     postLoginUrl: 'https://member.bilibili.com',
-    editorUrl: (id: string) => `https://member.bilibili.com/platform/upload/text/edit?aid=${id}`,
+    editorUrl: (id: string) => `https://member.bilibili.com/york/read-editor?aid=${id}`,
     async doPublish(page: Page) {
       await page.waitForTimeout(10000)
-      console.log(`  [Debug] B站 URL: ${page.url()}`)
-      console.log(`  [Debug] Page title: ${await page.title()}`)
-      // Check if we're on the right page
-      const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '')
-      console.log(`  [Debug] Body: ${bodyText.substring(0, 200)}`)
-      // Click "发布" button
-      const pubBtn = page.locator('button').filter({ hasText: '发布' })
-      const count = await pubBtn.count()
-      console.log(`  [Debug] Publish buttons: ${count}`)
-      if (count > 0) {
-        await pubBtn.last().click()
-        await page.waitForTimeout(5000)
-      }
+      // Click the "发布" button in the footer (publish-footer)
+      const pubBtn = page.locator('.publish-footer button.vui_button--blue, .vui_button--blue').filter({ hasText: '发布' })
+      await pubBtn.waitFor({ state: 'visible', timeout: 30000 })
+      await pubBtn.click()
+      await page.waitForTimeout(5000)
     },
   },
 
