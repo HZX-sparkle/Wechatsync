@@ -259,30 +259,36 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
       await page.waitForTimeout(1500)
 
-      // Step 2: Upload cover — find the LAST file input (dialog's image upload)
-      const coverPath = generateCoverPng()
-      const allInputs = page.locator('input[type="file"]')
-      const inputCount = await allInputs.count()
-      console.log(`  [Debug] Found ${inputCount} file input(s)`)
-      if (inputCount > 0) {
-        // Use the last file input (likely the cover dialog's image upload)
-        await allInputs.last().setInputFiles(coverPath)
-        await page.waitForTimeout(3000)
+      // Step 2: Click "点击本地上传" to trigger file input, then upload
+      const uploadBtn = page.locator('span, div, button').filter({ hasText: /本地上传|上传/ }).first()
+      if (await uploadBtn.count() > 0) {
+        // Set up file chooser handler BEFORE clicking
+        const fileChooserPromise = page.waitForEvent('filechooser')
+        await uploadBtn.click({ force: true })
+        const chooser = await fileChooserPromise.catch(() => null)
+        if (chooser) {
+          await chooser.setFiles(generateCoverPng())
+          await page.waitForTimeout(3000)
+        }
+      } else {
+        // Fallback: find file input directly
+        const inputs = page.locator('input[type="file"]')
+        if (await inputs.count() > 0) {
+          await inputs.last().setInputFiles(generateCoverPng())
+          await page.waitForTimeout(3000)
+        }
       }
 
       // Step 3: Click "发布"
       await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
       await page.waitForTimeout(2000)
 
-      // Step 4: Handle warnings — click "确定" in any confirmation dialog
+      // Step 4: Handle warning dialogs — click all "确定"/"确认" buttons
       await page.evaluate(() => {
         const btns = Array.from(document.querySelectorAll('button'))
-        const targets = btns.filter(b => {
-          const t = b.textContent || ''
-          return t.includes('确定') || t.includes('确认') || t.includes('知道')
-        })
-        for (const btn of targets) {
-          (btn as HTMLButtonElement).click()
+        for (const btn of btns) {
+          const t = btn.textContent || ''
+          if (t.includes('确定') || t.includes('确认')) (btn as HTMLButtonElement).click()
         }
       })
       await page.waitForTimeout(5000)
