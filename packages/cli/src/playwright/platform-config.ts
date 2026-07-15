@@ -3,6 +3,83 @@
  * Based on MultiPost publish-agent's platforms.json + lib/*-dynamic.js
  */
 import type { Page } from 'playwright'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+
+/** Generate a simple blue PNG cover image and return its file path */
+function generateCoverPng(): string {
+  const dir = path.join(os.tmpdir(), 'wechatsync')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const filePath = path.join(dir, 'cover.png')
+  if (fs.existsSync(filePath)) return filePath
+
+  // Generate a 200x150 PNG: signature + IHDR + IDAT + IEND
+  const width = 200, height = 150
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+
+  // IHDR
+  const ihdrLen = Buffer.alloc(4); ihdrLen.writeUInt32BE(13, 0)
+  const ihdrType = Buffer.from('IHDR')
+  const ihdrData = Buffer.alloc(13)
+  ihdrData.writeUInt32BE(width, 0)
+  ihdrData.writeUInt32BE(height, 4)
+  ihdrData[8] = 8  // 8bit
+  ihdrData[9] = 2  // RGB
+  ihdrData[10] = 0; ihdrData[11] = 0; ihdrData[12] = 0
+
+  // CRC32 for IHDR
+  const ihdrChunk = Buffer.concat([ihdrType, ihdrData])
+  const crc32 = (buf: Buffer): Buffer => {
+    let crc = 0xFFFFFFFF
+    for (let i = 0; i < buf.length; i++) {
+      crc ^= buf[i]
+      for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0)
+    }
+    const result = Buffer.alloc(4)
+    result.writeUInt32BE((crc ^ 0xFFFFFFFF) >>> 0, 0)
+    return result
+  }
+  const ihdrCrc = crc32(ihdrChunk)
+  const ihdr = Buffer.concat([ihdrLen, ihdrChunk, ihdrCrc])
+
+  // IDAT: raw pixel data (filter byte 0 + R=51 G=102 B=204 per pixel)
+  const rawData = Buffer.alloc(height * (1 + width * 3))
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * (1 + width * 3)
+    rawData[rowStart] = 0 // filter byte
+    for (let x = 0; x < width; x++) {
+      const p = rowStart + 1 + x * 3
+      rawData[p] = 51    // R
+      rawData[p + 1] = 102 // G
+      rawData[p + 2] = 204 // B
+    }
+  }
+  // Simple zlib: store method (uncompressed)
+  const cmf = 0x78; const flg = 0x01
+  const adler32 = (buf: Buffer): Buffer => {
+    let a = 1, b = 0
+    for (let i = 0; i < buf.length; i++) { a = (a + buf[i]) % 65521; b = (b + a) % 65521 }
+    const val = ((b >>> 0) * 65536 + (a >>> 0)) >>> 0
+    const r = Buffer.alloc(4); r.writeUInt32BE(val, 0); return r
+  }
+  const compressed = Buffer.concat([Buffer.from([cmf, flg]), rawData, adler32(rawData)])
+
+  const idatLen = Buffer.alloc(4); idatLen.writeUInt32BE(compressed.length, 0)
+  const idatType = Buffer.from('IDAT')
+  const idatChunk = Buffer.concat([idatType, compressed])
+  const idat = Buffer.concat([idatLen, idatChunk, crc32(idatChunk)])
+
+  // IEND
+  const iendLen = Buffer.alloc(4) // 0
+  const iendType = Buffer.from('IEND')
+  const iendChunk = Buffer.concat([iendType])
+  const iend = Buffer.concat([iendLen, iendChunk, crc32(iendChunk)])
+
+  const png = Buffer.concat([signature, ihdr, idat, iend])
+  fs.writeFileSync(filePath, png)
+  return filePath
+}
 
 export interface PlatformPublishConfig {
   /** Display name */
@@ -195,67 +272,13 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       await page.locator('span, div, button').filter({ hasText: '选择封面' }).first().click({ force: true })
       await page.waitForTimeout(1000)
 
-      // Find the hidden file input and upload a generated cover image
-      const fileInput = page.locator('input[type="file"]')
-      const fiCount = await fileInput.count()
-      if (fiCount > 0) {
-        // Generate a valid 100x100 blue PNG cover using a Buffer
-        // PNG spec: signature + IHDR + IDAT + IEND
-        const pngBytes: number[] = []
-        // PNG signature
-        pngBytes.push(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
-        // IHDR chunk (13 bytes): width=100, height=100, 8bit RGB
-        const ihdr = new Uint8Array(25)
-        const view = new DataView(ihdr.buffer)
-        view.setUint32(0, 13) // length
-        ihdr.set([0x49, 0x48, 0x44, 0x52], 4) // "IHDR"
-        view.setUint32(8, 100)  // width
-        view.setUint32(12, 100) // height
-        ihdr[16] = 8  // bit depth
-        ihdr[17] = 2  // color type (RGB)
-        ihdr[18] = 0  // compression
-        ihdr[19] = 0  // filter
-        ihdr[20] = 0  // interlace
-        // CRC for IHDR (simple, using known good CRC for 100x100 IHDR)
-        const crc1 = [0xFF, 0x80, 0x02, 0x03]
-        ihdr.set(crc1, 21)
-        pngBytes.push(...Array.from(ihdr))
-        // IDAT chunk: zlib-compressed 100 rows of blue pixels
-        const idatRaw: number[] = []
-        for (let y = 0; y < 100; y++) {
-          idatRaw.push(0) // filter byte (none)
-          for (let x = 0; x < 100; x++) {
-            idatRaw.push(0, 0, 255) // blue pixel (R=0, G=0, B=255)
-          }
-        }
-        // Use a pre-computed valid IDAT for blue 100x100 (simplified)
-        // For simplicity, write temp file via page.evaluate
+      // Upload a locally-generated cover image
+      const coverPath = generateCoverPng()
+      const fileInput = page.locator('input[type="file"]').first()
+      if (await fileInput.count() > 0) {
+        await fileInput.setInputFiles(coverPath)
+        await page.waitForTimeout(3000)
       }
-      // Simpler approach: upload via page.evaluate using a canvas-generated blob
-      await page.evaluate(() => {
-        const canvas = document.createElement('canvas')
-        canvas.width = 100; canvas.height = 100
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.fillStyle = '#3366CC'
-          ctx.fillRect(0, 0, 100, 100)
-          ctx.fillStyle = '#FFFFFF'
-          ctx.font = '20px sans-serif'
-          ctx.fillText('Cover', 10, 60)
-        }
-        canvas.toBlob((blob) => {
-          if (!blob) return
-          const file = new File([blob], 'cover.png', { type: 'image/png' })
-          const dt = new DataTransfer()
-          dt.items.add(file)
-          const input = document.querySelector('input[type="file"]') as HTMLInputElement
-          if (input) {
-            input.files = dt.files
-            input.dispatchEvent(new Event('change', { bubbles: true }))
-          }
-        }, 'image/png')
-      })
-      await page.waitForTimeout(3000)
 
       // Step 2: Click "发布"
       await page.locator('button').filter({ hasText: /^发布$/ }).first().click({ force: true })
