@@ -42,6 +42,66 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
       await btn.waitFor({ state: 'visible', timeout: 5000 })
       await page.waitForTimeout(500)
       await btn.click()
+
+      // Wait for the publish-popup dialog to appear
+      const popup = page.locator('.publish-popup.active')
+      await popup.waitFor({ state: 'visible', timeout: 10000 })
+      await page.waitForTimeout(500)
+
+      // Step 1: Category — click an item in the category-list (not a dropdown)
+      await page.evaluate(() => {
+        const items = document.querySelectorAll('.category-list .item')
+        // Check if one is already active
+        const active = document.querySelector('.category-list .item.active')
+        if (!active && items.length > 0) {
+          // Click the first non-active item
+          (items[0] as HTMLElement).click()
+        }
+      })
+      await page.waitForTimeout(500)
+
+      // Step 2: Tags — click the tag select to open dropdown, then pick an option
+      await page.evaluate(() => {
+        // Find and click the tag select trigger
+        const popup = document.querySelector('.publish-popup.active') || document
+        const selects = popup.querySelectorAll('.byte-select__input, .byte-select__trigger')
+        // Click the first select (usually tags)
+        for (const sel of Array.from(selects)) {
+          const wrap = sel.closest('.byte-select__wrap, .byte-form__item')
+          if (wrap?.textContent?.includes('标签') || !wrap?.textContent?.includes('分类')) {
+            (sel as HTMLElement).click()
+            break
+          }
+        }
+      })
+      await page.waitForTimeout(1500)
+      // Click the first tag option in the dropdown
+      await page.evaluate(() => {
+        const options = document.querySelectorAll('.byte-select-dropdown .byte-option, .byte-overlay .byte-option, [class*="dropdown"] [class*="option"]')
+        if (options.length > 0) {
+          (options[0] as HTMLElement).click()
+        }
+      })
+      await page.waitForTimeout(500)
+
+      // Step 3: Fill summary textarea
+      await page.evaluate(() => {
+        const popup = document.querySelector('.publish-popup.active')
+        if (!popup) return
+        const ta = popup.querySelector('.byte-input__textarea, textarea') as HTMLTextAreaElement | null
+        if (ta) {
+          ta.value = '这是一篇由 WechatSync 自动发布功能生成的测试文章，用于验证 Playwright 一键发布流程是否正常工作的完整测试。'
+          ta.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+      })
+      await page.waitForTimeout(500)
+
+      // Step 4: Click "确定并发布"
+      await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'))
+        const btn = btns.find(b => b.textContent?.includes('确定并发布') || b.textContent?.includes('确认并发布'))
+        if (btn) btn.click()
+      })
       await page.waitForTimeout(5000)
     },
     async checkUsername(page: Page) {
