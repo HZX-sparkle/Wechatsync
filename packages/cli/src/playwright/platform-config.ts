@@ -241,16 +241,14 @@ const PLATFORMS: Record<string, PlatformPublishConfig> = {
     postLoginUrl: 'https://segmentfault.com',
     editorUrl: (id: string) => `https://segmentfault.com/write?draftId=${id}`,
     async doPublish(page: Page) {
-      await page.waitForTimeout(5000)
-      // Scan all elements to understand the page
-      const scan = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('button, a, [class*="btn"]')).filter(el => !!(el as HTMLElement).offsetParent).map(el => ({
-          tag: el.tagName, t: (el as HTMLElement).textContent?.trim().substring(0, 30),
-        })).slice(0, 10)
-      )
-      console.log(`  [Debug] SF elements: ${JSON.stringify(scan)}`)
-      // Try "提交" or "发布" — some SF editors use "发布文章"
-      await page.locator('button').filter({ hasText: /发布|提交/ }).first().click({ force: true })
+      await page.waitForTimeout(10000)
+      console.log(`  [Debug] SF URL: ${page.url()}`)
+      const bodyText = await page.evaluate(() => document.body?.innerText?.substring(0, 500) || '')
+      console.log(`  [Debug] SF body: ${bodyText.substring(0, 300)}`)
+      // Try clicking a publish button
+      const btns = await page.locator('button').count()
+      console.log(`  [Debug] SF buttons: ${btns}`)
+      await page.locator('button').filter({ hasText: /发布|提交|投稿/ }).first().click({ force: true }).catch(() => {})
       await page.waitForTimeout(5000)
     },
   },
